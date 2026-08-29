@@ -1,13 +1,13 @@
 # Phase 0 — Pre-Implementation Findings
 **Project 8 — COLO829 Tumour-Normal Somatic Genomics Pipeline**
-**Date:** 2026-08-29
-**Status:** Research complete; two items need your decision before Phase 1 starts (flagged ⚠️ below)
+**Date:** 2026-08-29 (updated same day: truth-set decision recorded, Craig et al. 2016 access status confirmed)
+**Status:** Research complete. Truth-set decision made (§1). One correction remains purely mechanical (§2, SigProfiler package names) — no further decisions block Phase 1.
 
 This document reports what was resolved against the Phase 0 checklist in the v1.1 plan (§3 and §11). Full citations and download commands are in `docs/data_sources.md`. Items requiring your direct action (registration, actual downloads, running commands against your own network) are marked accordingly — none of that can be done from this sandbox.
 
 ---
 
-## ⚠️ 1. Truth set — the plan's citation needs correcting
+## ✅ 1. Truth set — citation corrected, decision made
 
 The plan names "SEQC2 / Fang et al., *Nature Biotechnology* 2021" as the COLO829 truth set, flagged "to be verified." It doesn't hold up:
 
@@ -17,18 +17,15 @@ The real options for a COLO829 SNV/indel truth set are less clean than the plan 
 
 | Source | Scope | Access | Genome build | Fit |
 |---|---|---|---|---|
-| **Craig et al. 2016**, *Sci Rep* (["A somatic reference standard for cancer genome sequencing"](https://www.nature.com/articles/srep24607)) | SNV + indel + CNV, 3-platform consensus (>35,000 point mutations, 446 indels) | Raw data on **EGA, controlled access** (study [EGAS00001001385](https://ega-archive.org/studies/EGAS00001001385), DAC [EGAC00001000408](https://www.omicsdi.org/dataset/ega/EGAC00001000408)) — the *call set itself* may be available as a paper supplementary file even though the reads require DAC approval; needs direct checking against the paper's supplementary materials | Not confirmed (2016-era, likely GRCh37 originally) | Widely cited as "the" COLO829 gold standard, but not simply "open access" as the plan assumed |
+| **Craig et al. 2016**, *Sci Rep* (["A somatic reference standard for cancer genome sequencing"](https://www.nature.com/articles/srep24607)) | SNV + indel + CNV, 3-platform consensus (>35,000 point mutations, 446 indels) | **Confirmed controlled-access only** — the paper's data availability statement puts "all BAMs and VCFs, including that for the final somatic reference" behind dbGaP (phs000932) or EGA ([EGAS00001001385](https://ega-archive.org/studies/EGAS00001001385), DAC [EGAC00001000408](https://www.omicsdi.org/dataset/ega/EGAC00001000408)). No open supplementary-file shortcut exists. | Not confirmed (2016-era, likely GRCh37 originally) | Widely cited as "the" COLO829 gold standard, but genuinely not usable without a DAC application |
 | **Valle-Inclan et al. 2022**, *Cell Genomics* (["A multi-platform reference for somatic structural variation detection"](https://www.sciencedirect.com/science/article/pii/S2666979X22000726)) | **Structural variants only** — no SNV/indel truth set | Fully open, ENA [PRJEB27698](https://www.ebi.ac.uk/ena/browser/view/PRJEB27698), truth VCFs on Zenodo ([4716169](https://zenodo.org/records/4716169), GRCh37 + GRCh38-lifted) | GRCh37 native, GRCh38-lifted VCF also provided | Same sample lineage as the open FASTQs below, but doesn't cover what Module 5 needs (SNV/indel) |
 | **NYGC / Xiao et al. 2019**, *Sci Rep* (["Deep whole-genome sequencing of 3 cancer cell lines on 2 sequencing platforms"](https://www.nature.com/articles/s41598-019-55636-3)) | SNV/indel/CNV/SV somatic calls, HiSeqX + NovaSeq, up to 278X | **Processed somatic VCFs open, no login**, via the [NYGC companion site](https://www.nygenome.org/bioinformatics/3-cancer-cell-lines-on-2-sequencers/); raw FASTQ/BAM on **dbGaP phs001839 (controlled access)** | GRCh38 | Open SNV/indel calls, but from NYGC's own pipeline (not an independent multi-platform consensus like Craig 2016) and from different library preps than PRJEB27698 |
 
-**None of these is a drop-in replacement that matches the plan's "no controlled-access issues" framing for a truth set.** The cleanest path given the "no controlled-access" constraint is: use the NYGC open somatic VCF as the SNV/indel truth set, explicitly document that it comes from different sequencing (HiSeqX/NovaSeq, NYGC library prep) than the ENA FASTQs you'll actually align — this is precisely the "cell lines evolve, truth set may not match preparation" caveat the plan already told us to document in `docs/benchmarking_results.md` (§11, Phase 0 truth-set bullet). Optionally cross-reference against Craig et al. 2016 supplementary calls if those turn out to be open (unverified — see TODO below).
+**Decision (2026-08-29): NYGC open somatic VCF (HiSeqX version) is the primary SNV/indel truth set.** Reasoning: it's the only genuinely open SNV/indel option, HiSeqX platform-matches the PRJEB27698 FASTQs (removing one axis of difference even though the sequencing centre/library prep still differ), and it keeps the whole project free of controlled-access dependencies — preserving the exact rationale that motivated choosing COLO829 over TCGA in the first place. Pursuing EGA DAC access for Craig et al. 2016 was explicitly declined for that reason.
 
-**This is a decision for you, not something I should pick unilaterally** — it changes what "benchmarking success" means for the project's centrepiece deliverable. Options:
-- (a) NYGC open VCF as primary truth set, caveat documented, Craig 2016 as a secondary sanity-check if its supplementary calls turn out to be open
-- (b) Pursue EGA DAC access for Craig et al. 2016 (breaks the "no controlled-access issues" framing that motivated choosing COLO829 over TCGA in the first place)
-- (c) Restrict truth-set validated scope to structural variants (Valle-Inclan, fully open) and treat SNV/indel benchmarking as best-effort against NYGC calls only
+The lineage-mismatch caveat (NYGC's own pipeline, separate sequencing run, not an independent multi-platform consensus like Craig 2016) is now recorded in `docs/data_sources.md` §3, to carry into `docs/benchmarking_results.md` per the plan's Phase 0 instruction not to leave this quietly assumed. Valle-Inclan et al. 2022's SV truth set (fully open, genuinely PRJEB27698-lineage-matched) is kept as a complementary Module 7 CNV/SV cross-check, not a substitute — it doesn't cover SNV/indel so it can't replace the NYGC VCF for Module 5.
 
-I'd lean (a), but this is exactly the kind of call the plan says should gate downstream work, so flagging rather than deciding for you.
+**Remaining mechanical step:** the NYGC page's download links didn't resolve through this session's web-fetching tools (markdown conversion dropped the actual hrefs) — grab the exact **COLO-829 (HiSeqX)** SNV/indel VCF URL directly from https://www.nygenome.org/bioinformatics/3-cancer-cell-lines-on-2-sequencers/ in your browser and record it in `docs/data_sources.md` §3. Not a decision, just a fetch I couldn't complete from here.
 
 ---
 
@@ -124,10 +121,11 @@ Delivered as `docs/run_manifest.schema.json` (draft) plus a worked example, cove
 
 ## Summary — what's actually blocking Phase 1
 
-Nothing here blocks starting Phase 1 (QC/alignment, Modules 1–2) on the `dev` profile against the PRJEB27698 FASTQs. What **should** be resolved before Phase 3 (benchmarking, the project's centrepiece) is the truth-set decision in §1 — that determines what `docs/benchmarking_results.md` is actually measuring against. Recommend deciding that once you've had a chance to look at the options above, rather than defaulting silently.
+Nothing blocks starting Phase 1 (QC/alignment, Modules 1–2) on the `dev` profile against the PRJEB27698 FASTQs. The truth-set decision (§1) is now made, so Phase 3 (benchmarking) is unblocked too, pending the mechanical download steps below.
 
 **Needs your direct action (cannot be done from this sandbox):**
-1. Decide the truth-set strategy (§1)
+1. ~~Decide the truth-set strategy~~ — done (§1): NYGC open VCF, HiSeqX version
+1. Grab the exact NYGC HiSeqX COLO-829 SNV/indel VCF download URL from the browser (§1) and download it
 2. Register at COSMIC/cosmickb.org and download the CGC TSV (§6)
 3. Run the ENA `curl` command from WSL to get exact FASTQ run accessions and sizes (§3)
 4. `docker pull` and confirm the CNVkit and hap.py image tags on your machine (§5)

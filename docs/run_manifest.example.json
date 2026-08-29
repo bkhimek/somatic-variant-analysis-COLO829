@@ -55,11 +55,11 @@
     }
   },
   "truth_set": {
-    "name": "TODO_PENDING_DECISION_SEE_PHASE0_FINDINGS",
-    "citation": "TODO",
-    "url": "TODO",
-    "genome_build": "TODO",
-    "lineage_caveat": "TODO_document_whether_truth_set_sequencing_matches_PRJEB27698_FASTQ_preparation"
+    "name": "NYGC COLO-829 (HiSeqX) somatic SNV/indel VCF",
+    "citation": "Xiao, W. et al. Deep whole-genome sequencing of 3 cancer cell lines on 2 sequencing platforms. Sci Rep 2019. https://www.nature.com/articles/s41598-019-55636-3",
+    "url": "TODO_fill_in_exact_file_URL_from_https://www.nygenome.org/bioinformatics/3-cancer-cell-lines-on-2-sequencers/",
+    "genome_build": "GRCh38",
+    "lineage_caveat": "NYGC's own pipeline, separate HiSeqX sequencing run/library prep from the PRJEB27698 FASTQs this pipeline aligns; not an independent multi-platform consensus (Craig et al. 2016 would be, but is EGA/dbGaP controlled-access only, declined for that reason). Treat concordance as agreement with another GATK-family somatic caller on a related-but-not-identical COLO829 preparation, not as absolute ground truth."
   },
   "containers": [
     { "module": "fastqc", "image": "quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0", "digest": "TODO" },
