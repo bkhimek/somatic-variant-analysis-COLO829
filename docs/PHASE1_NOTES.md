@@ -1,9 +1,19 @@
 # Phase 1 — QC and Alignment (Modules 1–2): implementation notes
 
-**Date:** 2026-08-29
-**Status:** Code written, not yet run. This was built in a Cowork sandbox with no Nextflow, no Docker, and no access to the real FASTQs or reference. I tried to install Nextflow here to actually lint/run it (`get.nextflow.io` and GitHub releases are both blocked by this sandbox's network policy) and couldn't, so this has only been checked by careful manual read-through, not executed. Manual review did catch two real DSL2 channel-cardinality bugs before delivery (both classic Nextflow gotchas, both fixed — see `workflows/somatic.nf` comments at the `.flatMap` and `BWA_MEM2_INDEX.out.index.first()` lines for what they were), but manual review is not the same guarantee as an actual run. Treat the first real `nextflow run` on your machine as the actual test, not this write-up — there could still be issues review alone doesn't catch (a typo in an unexercised code path, a container that doesn't actually have a tool where I assumed it would, etc).
+**Date:** 2026-08-29 (updated same day after the first real run)
+**Status:** Code has now actually run — see "First real run — findings" below. Originally built in a Cowork sandbox with no Nextflow, no Docker, and no access to the real FASTQs or reference; I tried to install Nextflow there to lint/run it (`get.nextflow.io` and GitHub releases were both blocked by that sandbox's network policy) and couldn't, so it was only checked by manual read-through before delivery. Manual review caught two real DSL2 channel-cardinality bugs before delivery (both classic Nextflow gotchas — see `workflows/somatic.nf` comments at the `.flatMap` and `BWA_MEM2_INDEX.out.index.first()` lines), but as flagged at the time, review alone isn't the same guarantee as an actual run — and indeed, the first real run surfaced two things review missed (below).
 
 ---
+
+## First real run — findings (2026-08-29)
+
+Run on a chr21-only reference slice (full-genome `bwa-mem2 index` needs ~87-110GB RAM to build — confirmed via bwa-mem2's own documentation and a matching GitHub issue report of ~80GB/50min for this exact reference; see `docs/data_sources.md` §2 note) with a 10,000-read-pair subsample of each real FASTQ. Two things surfaced that manual review didn't catch:
+
+1. **`samtools:1.21--h50ea8bc_0` container tag — confirmed real**, resolves item 1 below; `SAMTOOLS_SORT` ran successfully.
+2. **MultiQC bug, found and fixed:** `MULTIQC`'s output declared `path("multiqc_data")`, but MultiQC actually names its data directory from the `--filename` argument's stem — `--filename multiqc_report.html` produces `multiqc_report_data`, not a fixed `multiqc_data`. Nextflow failed with "Missing output file(s) `multiqc_data`" even though MultiQC itself exited 0 and worked correctly — the module just declared the wrong output path. Fixed in `modules/fastqc.nf` to `path("multiqc_report_data")`.
+3. **Benign warning, no fix needed:** `WARN: The operator 'first' is useless when applied to a value channel...` on the `BWA_MEM2_INDEX.out.index.first()` line. In this pipeline's actual wiring, `reference_fasta` is built with a plain `file(params.reference_fasta)` in `main.nf` (not a multi-item queue channel), so it — and everything downstream of a process that only consumes it — is already a value channel by construction; `.first()` doesn't change behavior here. It was added as defensive best practice against the classic gotcha where a process fed by an *actual* queue channel with more than one item would otherwise "run dry" after the first item; that risk doesn't materialize in this specific wiring, but the line is harmless and left in place rather than removed for one less non-blocking warning.
+
+Both samples aligned successfully (`BWA_MEM2_ALIGN [100%] 2 of 2`), confirming the FASTQC → BWA-MEM2 chain works end to end. Not yet confirmed: `SAMTOOLS_SORT` → `MARK_DUPLICATES` output correctness (run was still in progress at the MultiQC failure) — rerun with `-resume` after the fix above to pick up from there without redoing FASTQC/alignment.
 
 ## What's implemented
 
@@ -18,7 +28,7 @@ Not implemented here, deliberately deferred to their own phases per the plan's b
 
 ## Things you need to check/fix before this actually runs
 
-**1. `samtools` container tag is unconfirmed.** `modules/alignment.nf`'s `SAMTOOLS_SORT` process uses `quay.io/biocontainers/samtools:1.21--h50ea8bc_0`. I could not browse quay.io's tag list from this sandbox (blocked by robots.txt, same limitation hit for CNVkit/hap.py in Phase 0) to confirm this exact build-hash suffix is real. Before running:
+**1. ~~`samtools` container tag is unconfirmed~~ — CONFIRMED 2026-08-29** via both a standalone `docker pull` and the actual first pipeline run (`SAMTOOLS_SORT` executed successfully). `modules/alignment.nf`'s `SAMTOOLS_SORT` process uses `quay.io/biocontainers/samtools:1.21--h50ea8bc_0`. (Original concern: I could not browse quay.io's tag list from the build sandbox, blocked by robots.txt, same limitation hit for CNVkit/hap.py in Phase 0 — no longer relevant now it's confirmed working.)
 ```bash
 docker pull quay.io/biocontainers/samtools:1.21--h50ea8bc_0
 ```

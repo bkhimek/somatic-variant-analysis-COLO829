@@ -29,10 +29,14 @@ process MULTIQC {
 
     output:
     path("multiqc_report.html"), emit: report
-    path("multiqc_data"), emit: data
+    path("multiqc_report_data"), emit: data
 
     script:
     """
     multiqc fastqc_reports --filename multiqc_report.html
     """
+    // NOTE (found via real execution, 2026-08-29): MultiQC names its data directory from the
+    // --filename stem, not a fixed "multiqc_data" -- "--filename multiqc_report.html" produces
+    // "multiqc_report_data", confirmed by an actual run's "Data : multiqc_report_data" log line.
+    // The original "multiqc_data" guess (never executed, only manually reviewed) was wrong.
 }
