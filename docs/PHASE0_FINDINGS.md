@@ -1,7 +1,7 @@
 # Phase 0 — Pre-Implementation Findings
 **Project 8 — COLO829 Tumour-Normal Somatic Genomics Pipeline**
-**Date:** 2026-08-29 (updated same day: truth-set decision recorded, Craig et al. 2016 access status confirmed)
-**Status:** Research complete. Truth-set decision made (§1). One correction remains purely mechanical (§2, SigProfiler package names) — no further decisions block Phase 1.
+**Date:** 2026-08-29 (twice-updated same day: truth-set decision recorded; then the NYGC download URL, which turned out to be dead, tracked down to a working GitHub source and a GRCh37/38 question raised during that troubleshooting resolved)
+**Status:** Research complete, download URL verified working. No remaining decisions block Phase 1 or Phase 3.
 
 This document reports what was resolved against the Phase 0 checklist in the v1.1 plan (§3 and §11). Full citations and download commands are in `docs/data_sources.md`. Items requiring your direct action (registration, actual downloads, running commands against your own network) are marked accordingly — none of that can be done from this sandbox.
 
@@ -25,7 +25,14 @@ The real options for a COLO829 SNV/indel truth set are less clean than the plan 
 
 The lineage-mismatch caveat (NYGC's own pipeline, separate sequencing run, not an independent multi-platform consensus like Craig 2016) is now recorded in `docs/data_sources.md` §3, to carry into `docs/benchmarking_results.md` per the plan's Phase 0 instruction not to leave this quietly assumed. Valle-Inclan et al. 2022's SV truth set (fully open, genuinely PRJEB27698-lineage-matched) is kept as a complementary Module 7 CNV/SV cross-check, not a substitute — it doesn't cover SNV/indel so it can't replace the NYGC VCF for Module 5.
 
-**Remaining mechanical step:** the NYGC page's download links didn't resolve through this session's web-fetching tools (markdown conversion dropped the actual hrefs) — grab the exact **COLO-829 (HiSeqX)** SNV/indel VCF URL directly from https://www.nygenome.org/bioinformatics/3-cancer-cell-lines-on-2-sequencers/ in your browser and record it in `docs/data_sources.md` §3. Not a decision, just a fetch I couldn't complete from here.
+**Update 2026-08-29 (later same day): the NYGC page in the citation above is dead.** The paper cites `www.nygenome.org/bioinformatics/...`; NYGC has since moved their bioinformatics site to a `bioinformatics.nygenome.org` subdomain with no redirect from the old URL, and even the new subdomain's own download buttons didn't resolve through automated fetching (possibly JS-rendered rather than plain links) or, per your own browser test, sometimes fail outright. Tracked down a working alternative instead: **NYGC's own GitHub repo**, confirmed live and its download link confirmed to resolve to a genuine ~140MB file (not a 404 or Git LFS stub):
+```
+https://github.com/nygenome/3-cancer-cell-lines-on-2-sequencers
+https://raw.githubusercontent.com/nygenome/3-cancer-cell-lines-on-2-sequencers/master/data/Variants.HighCoverage.tar.gz
+```
+Exact download/extraction commands are in `docs/data_sources.md` §3.
+
+**A GRCh37-vs-GRCh38 question came up while chasing this down and was worth checking properly rather than taking at face value:** the paper separately re-ran its pipeline on GRCh37, purely to compare against Craig et al. 2016's GRCh37-only, EGA-controlled dataset (EGAD00001002142 — the same Craig 2016 study already declined above, not a new resource). Confirmed by reading the paper's actual methods text: **the primary pipeline output we're downloading — the GRCh38 `Variants.HighCoverage.tar.gz` file — is unaffected**; the GRCh37 run is a paragraph in their methods, not a file we touch. If anything this strengthens the choice: the paper reports 98% concordance between NYGC's own calls and the Craig et al. 2016 gold-standard set, i.e. an independent validation of the exact file we're using, already done for us. Full detail in `docs/data_sources.md` §3.
 
 ---
 
@@ -125,8 +132,8 @@ Nothing blocks starting Phase 1 (QC/alignment, Modules 1–2) on the `dev` profi
 
 **Needs your direct action (cannot be done from this sandbox):**
 1. ~~Decide the truth-set strategy~~ — done (§1): NYGC open VCF, HiSeqX version
-1. Grab the exact NYGC HiSeqX COLO-829 SNV/indel VCF download URL from the browser (§1) and download it
-2. Register at COSMIC/cosmickb.org and download the CGC TSV (§6)
-3. Run the ENA `curl` command from WSL to get exact FASTQ run accessions and sizes (§3)
-4. `docker pull` and confirm the CNVkit and hap.py image tags on your machine (§5)
-5. Confirm disk space against the estimate in §7 once real sizes are in hand
+2. ~~Find a working download URL~~ — done (§1): GitHub, not the paper's dead NYGC link. Run the `curl`/`tar` commands in `docs/data_sources.md` §3 to actually pull and extract it.
+3. Register at COSMIC/cosmickb.org and download the CGC TSV (§6)
+4. Run the ENA `curl` command from WSL to get exact FASTQ run accessions and sizes (§3)
+5. `docker pull` and confirm the CNVkit and hap.py image tags on your machine (§5)
+6. Confirm disk space against the estimate in §7 once real sizes are in hand
