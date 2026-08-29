@@ -39,10 +39,29 @@ Full research trail and rationale for the decisions below: `docs/PHASE0_FINDINGS
 
 ---
 
-## 2. Reference genome
+## 2. Reference genome — RESOLVED 2026-08-29
 
-- **Build:** GRCh38 (specific decoy/patch level TODO — confirm which GRCh38 variant, e.g. `GRCh38.d1.vd1` vs. plain primary assembly, matches what the GATK PoN/gnomAD resources below were built against, to avoid contig-mismatch errors in Mutect2)
-- **Source:** TODO — standard Broad/GATK GRCh38 reference bundle, download command + md5 to be recorded here in Phase 1
+- **File:** `Homo_sapiens_assembly38.fasta` — the Broad's own GATK hg38 resource-bundle reference (**not** `GRCh38.d1.vd1`, the GDC/TCGA variant with a different decoy set — those two are not interchangeable and mixing them with the wrong PoN/gnomAD file causes exactly the "incompatible contigs" Mutect2 errors this section exists to avoid).
+- **Why this file specifically (not just "some GRCh38"):** confirmed via [nf-core/sarek's `igenomes.config`](https://github.com/nf-core/sarek/blob/master/conf/igenomes.config) — an actively-maintained, widely-used GATK-based somatic pipeline — that `Homo_sapiens_assembly38.fasta` is the reference paired with `af-only-gnomad.hg38.vcf.gz` and `1000g_pon.hg38.vcf.gz` under the same GATK bundle "Annotation/GATKBundle" grouping, i.e. the same three filenames this pipeline already uses for `germline_resource` and `panel_of_normals` (§4 below). Same-bundle filenames pairing up across an independent pipeline's config is good evidence these are the versions meant to be used together.
+- **Confirmed contents:** includes ALT and decoy contigs (per [Sarek's REFERENCES.md](https://github.com/SciLifeLab/Sarek/blob/master/docs/REFERENCES.md), which lists the accompanying `.alt`/`.amb`/`.ann`/`.bwt`/`.pac`/`.sa` index files) — chr-prefixed naming as used throughout the rest of this pipeline's resources.
+- **MD5 (per Sarek's REFERENCES.md, cross-check after download):** `7ff134953dcca8c8997453bbb80b6b5e`
+- **Download sources — verify reachability before pulling (~3 GB), this sandbox could not reach any of these to test them directly (network policy blocks `storage.googleapis.com` and FTP from here):**
+  ```bash
+  # Anonymous FTP (documented in multiple GATK tutorials/Sarek docs) -- try a directory listing first:
+  curl -u gsapubftp-anonymous: --list-only ftp://ftp.broadinstitute.org/bundle/hg38/
+
+  # If that lists Homo_sapiens_assembly38.fasta, pull it + companion .fai/.dict:
+  curl -u gsapubftp-anonymous: -O ftp://ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.fasta
+  curl -u gsapubftp-anonymous: -O ftp://ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.fasta.fai
+  curl -u gsapubftp-anonymous: -O ftp://ftp.broadinstitute.org/bundle/hg38/Homo_sapiens_assembly38.dict
+
+  # HTTPS mirrors (untested from this sandbox -- try if FTP is blocked on your network instead):
+  # https://storage.googleapis.com/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta
+  # https://storage.googleapis.com/genomics-public-data/references/hg38/v0/Homo_sapiens_assembly38.fasta
+
+  md5sum Homo_sapiens_assembly38.fasta   # compare against 7ff134953dcca8c8997453bbb80b6b5e above
+  ```
+- **`.fai`/`.dict`:** pull alongside if the FTP directory has them (commands above); if not, generate locally — `samtools faidx Homo_sapiens_assembly38.fasta` and `gatk CreateSequenceDictionary -R Homo_sapiens_assembly38.fasta` — needed by Phase 2's GATK steps regardless (see `docs/PHASE1_NOTES.md` item 5).
 
 ---
 

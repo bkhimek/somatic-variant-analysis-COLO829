@@ -140,5 +140,6 @@ Nothing blocks starting Phase 1 (QC/alignment, Modules 1–2) on the `dev` profi
 3. Register at COSMIC/cosmickb.org and download the CGC TSV (§6)
 4. ~~Run the ENA `curl` command from WSL to get exact FASTQ run accessions and sizes~~ — done (§3): `ERR2752449` (normal, ~114 Gbases) / `ERR2752450` (tumour, ~303 Gbases); download commands in `docs/data_sources.md` §1
 5. `docker pull` and confirm the CNVkit and hap.py image tags on your machine (§5) — `samtools:1.21--h50ea8bc_0` already confirmed working
-6. Confirm disk space against the ~210–240 GB combined raw-FASTQ estimate in `docs/data_sources.md` §1 (refines the older §7 rule-of-thumb now that real base counts are in hand)
-7. Actually download the two FASTQ pairs (`docs/data_sources.md` §1 download commands) and run the first real `nextflow run main.nf -profile docker,dev ...` per `docs/PHASE1_NOTES.md`
+6. Confirm disk space against the ~210–240 GB combined raw-FASTQ + ~3 GB reference estimate in `docs/data_sources.md` §1/§2 (refines the older §7 rule-of-thumb now that real base counts are in hand)
+7. ~~Resolve which GRCh38 reference FASTA to use~~ — done (`docs/data_sources.md` §2): `Homo_sapiens_assembly38.fasta`, confirmed to be the correct pairing for the PoN/gnomAD files already in `nextflow.config`. Download links given there are **unverified from this sandbox** — run the `--list-only` FTP check first before pulling the full ~3 GB file.
+8. Actually download the two FASTQ pairs and the reference (`docs/data_sources.md` §1/§2 download commands), generate `.fai`/`.dict`, and run the first real `nextflow run main.nf -profile docker,dev ...` per `docs/PHASE1_NOTES.md`
