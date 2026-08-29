@@ -12,13 +12,30 @@ Full research trail and rationale for the decisions below: `docs/PHASE0_FINDINGS
 - **Citation:** Valle-Inclan, J.E. et al. "A multi-platform reference for somatic structural variation detection." *Cell Genomics* 2022. https://www.sciencedirect.com/science/article/pii/S2666979X22000726 (preprint: https://www.biorxiv.org/content/10.1101/2020.10.15.340497v1.full)
 - **Access:** Open, no approval required (confirmed in the paper's data availability statement)
 - **Platform needed:** Illumina HiSeq X Ten short-read WGS only — PRJEB27698 is a multi-platform project (29 SRA experiments, ~4.09 Tbases total across Illumina, 10x Genomics, Oxford Nanopore, PacBio, BioNano). **Do not bulk-download the whole project.**
-- **Run accessions used:** TODO — fill in after running the ENA filereport query below from a machine with unrestricted network access (this sandbox's WebFetch was rate-limited by ENA repeatedly):
+- **Run accessions used — RESOLVED 2026-08-29:**
+  Your ENA `curl`/`awk` query returned 9 ILLUMINA/WGS rows under PRJEB27698. Five of those (`ERR4093255`–`ERR4093259`) are a purity-titration dilution series (10/20/25/50/75% tumour purity, ~300–304 Gbases each) — **out of scope**, set aside. The remaining four split into two ambiguous same-label pairs:
+
+  | Label | Accession | Base count | `fastq_ftp` |
+  |---|---|---|---|
+  | "COLO829 reference cell line" (normal) | `ERR2752449` | 114,093,383,622 | present |
+  | "COLO829 reference cell line" (normal) | `ERR2820166` | 99,480,531,208 | **empty** |
+  | "COLO829 melanoma cell line" (tumour) | `ERR2752450` | 303,329,725,932 | present |
+  | "COLO829 melanoma cell line" (tumour) | `ERR2820167` | 103,505,548,977 | **empty** |
+
+  This was deliberately **not guessed** — instead resolved by independent corroboration: [Cameron et al. 2021, "GRIDSS2"](https://www.biorxiv.org/content/10.1101/2020.07.09.196527v2.full) (*Genome Biology*, same PRJEB27698 dataset, same research collaboration as Valle-Inclan et al. 2022) states explicitly in its methods: *"Illumina HiSeqX (ENA run accessions ERR2752449 and ERR2752450 for COLO829BL and COLO829T, respectively)."*
+
+  **Decision: `ERR2752449` = COLO829BL (normal), `ERR2752450` = COLO829 (tumour).** This also matches the internally-consistent signal that only this pair has a populated `fastq_ftp` field — the `ERR2820166`/`ERR2820167` pair is most likely a superseded or otherwise-suppressed duplicate submission, not a second legitimate dataset. Implied coverage (base_count ÷ 3.1 Gb haploid genome): normal ≈ **36.8X**, tumour ≈ **97.8X** — a plausible, somewhat-higher-tumour-depth WGS design for somatic sensitivity, consistent with the paper's WGS design intent (not the same number as the paper's own quoted "155X"/"235X" combined-coverage figures, which sum across all five sequencing technologies in the project, not just this one HiSeqX run — see caveat below).
+- **Download commands** (run from WSL — get the exact `fastq_ftp` URLs for just these two accessions, don't bulk-download the project):
   ```bash
-  curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=PRJEB27698&result=read_run&fields=run_accession,sample_title,instrument_platform,library_strategy,fastq_ftp,base_count&format=tsv" \
-    | awk -F'\t' 'NR==1 || $3=="ILLUMINA"'
+  mkdir -p ~/projects/somatic-variant-analysis-COLO829/fastq && cd $_
+  curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=PRJEB27698&result=read_run&fields=run_accession,fastq_ftp,fastq_md5,base_count&format=tsv" \
+    | awk -F'\t' '$1=="ERR2752449" || $1=="ERR2752450" || NR==1'
+  # fastq_ftp column is two semicolon-separated URLs (R1;R2) per run -- prefix each with https:// and curl -LO them,
+  # or feed straight to wget -c. Verify against the fastq_md5 column after download.
   ```
-- **Coverage / instrument / library prep:** TODO — record here once the query above is run
-- **File sizes (download + expected BAM):** TODO — see `docs/PHASE0_FINDINGS.md` §7 for a provisional rule-of-thumb estimate pending real numbers
+- **Coverage / instrument / library prep:** Illumina HiSeq X Ten, TruSeq Nano prep (per Valle-Inclan et al. 2022 methods, §3 below). Per-run depth: see table above.
+- **File sizes (download + expected BAM):** normal ~114 Gbases / tumour ~303 Gbases of raw read data — refines the provisional rule-of-thumb estimate in `docs/PHASE0_FINDINGS.md` §7 into something concrete: expect roughly 60–70 GB gzipped FASTQ for the normal pair and 150–170 GB for the tumour pair (typical ~0.5–0.6 bytes/base for gzipped Illumina short reads), i.e. **~210–240 GB combined raw FASTQ**, before BAM/dedup/Mutect2 intermediates. Confirm against actual downloaded file sizes once fetched.
+- **Caveat carried into `docs/benchmarking_results.md`:** the paper's own reported "235X"/"155X" (tumour/normal) coverage figures are *combined across all five sequencing technologies* used in PRJEB27698 (Illumina, 10x Genomics, Nanopore, PacBio, BioNano) — not this HiSeqX run alone. Don't quote those numbers as this pipeline's actual input depth; use the per-run `base_count`-derived ~37X/~98X figures above, and replace with `samtools depth`/`stats` output once BAMs exist (Phase 1).
 
 ---
 

@@ -1,7 +1,7 @@
 # Phase 0 — Pre-Implementation Findings
 **Project 8 — COLO829 Tumour-Normal Somatic Genomics Pipeline**
-**Date:** 2026-08-29 (thrice-updated same day: truth-set decision recorded; NYGC's dead download URL tracked down to a working GitHub source and a GRCh37/38 question resolved; the file actually downloaded and extracted successfully)
-**Status:** Truth set is decided, downloaded, and extracted. Nothing left in this document blocks Phase 1 or Phase 3.
+**Date:** 2026-08-29 (four updates same day: truth-set decision recorded; NYGC's dead download URL tracked down to a working GitHub source and a GRCh37/38 question resolved; the file actually downloaded and extracted successfully; FASTQ run-accession ambiguity found and resolved via independent corroboration)
+**Status:** Truth set is decided, downloaded, and extracted. FASTQ run accessions are resolved (`ERR2752449` normal / `ERR2752450` tumour). Nothing left in this document blocks Phase 1 or Phase 3 — only the actual FASTQ download and first `nextflow run` remain, both on your machine.
 
 This document reports what was resolved against the Phase 0 checklist in the v1.1 plan (§3 and §11). Full citations and download commands are in `docs/data_sources.md`. Items requiring your direct action (registration, actual downloads, running commands against your own network) are marked accordingly — none of that can be done from this sandbox.
 
@@ -52,18 +52,21 @@ The Alexandrov Lab's real, current packages for this job:
 
 ---
 
-## 3. FASTQ accessions — resolved
+## 3. FASTQ accessions — resolved (2026-08-29, second pass)
 
 **ENA project [PRJEB27698](https://www.ebi.ac.uk/ena/browser/view/PRJEB27698)** ([Valle-Inclan et al. 2022](https://www.biorxiv.org/content/10.1101/2020.10.15.340497v1.full) data availability statement) is confirmed **fully open access, no approval required**, and includes Illumina HiSeq X Ten short-read WGS for both COLO829 (tumour) and COLO829BL (normal) — this is the same project that produced the open SV truth set above, so FASTQ and (SV) truth set share lineage, which is a plus.
 
 **Caveat:** PRJEB27698 is a *multi-platform* project — 29 SRA experiments, ~4.09 Tbases / 1.55 TB total, spanning Illumina HiSeq, 10x Genomics linked-reads, Oxford Nanopore, PacBio, and BioNano optical mapping. **Do not bulk-download the whole project** — only the plain Illumina HiSeq X Ten WGS runs are relevant to this pipeline's BWA-MEM2/Mutect2 design.
 
-**Outstanding (needs to run from your machine, not this sandbox):** I could not get past ENA's API rate limit from this sandbox to pull the exact run-accession-level table (which ERR runs are the plain Illumina WGS ones, vs. 10x/nanopore/PacBio/BioNano). Run this from WSL, where you have unrestricted network access:
+**First pass (blocked from this sandbox):** ENA's API rate-limited this sandbox's WebFetch repeatedly, so the run-accession-level query had to be run from your machine instead:
 ```bash
 curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=PRJEB27698&result=read_run&fields=run_accession,sample_title,instrument_platform,library_strategy,fastq_ftp,base_count&format=tsv" \
   | awk -F'\t' '$3=="ILLUMINA"'
 ```
-This gives you the run accessions, FASTQ FTP links, and base counts needed to fill in the compute/storage estimate (§5 below) with real numbers instead of the rule-of-thumb estimate I've given.
+
+**Second pass — ambiguity found and resolved.** Your query returned 9 ILLUMINA/WGS rows. Five (`ERR4093255`–`ERR4093259`) are a purity-titration series, out of scope. The remaining four split into two same-label pairs — "COLO829 reference cell line" (`ERR2752449` vs. `ERR2820166`) and "COLO829 melanoma cell line" (`ERR2752450` vs. `ERR2820167`) — with no obvious way to tell which of each pair is the real plain WGS run just from the ENA row itself. Rather than guess (the same mistake risk that bit the truth-set citation in §1), this was resolved via an independent source: [Cameron et al. 2021, "GRIDSS2"](https://www.biorxiv.org/content/10.1101/2020.07.09.196527v2.full) (*Genome Biology*, same dataset/collaboration as Valle-Inclan et al. 2022) states in its methods that it used *"Illumina HiSeqX (ENA run accessions ERR2752449 and ERR2752450 for COLO829BL and COLO829T, respectively)."* This also lines up with the fact that only that pair has a populated `fastq_ftp` field — the other pair (`ERR2820166`/`ERR2820167`) is most likely a suppressed/superseded duplicate submission.
+
+**Decision: `ERR2752449` = COLO829BL (normal), `ERR2752450` = COLO829 (tumour).** Full accession table, download commands, and implied per-run coverage (~37X normal / ~98X tumour): `docs/data_sources.md` §1.
 
 ---
 
@@ -135,6 +138,7 @@ Nothing blocks starting Phase 1 (QC/alignment, Modules 1–2) on the `dev` profi
 1. ~~Decide the truth-set strategy~~ — done (§1): NYGC open VCF, HiSeqX version
 2. ~~Find a working download URL and download it~~ — done (§1): GitHub source, downloaded and extracted; `COLO-829--COLO-829BL.snv.indel.final.v6.annotated.vcf` confirmed in hand
 3. Register at COSMIC/cosmickb.org and download the CGC TSV (§6)
-4. Run the ENA `curl` command from WSL to get exact FASTQ run accessions and sizes (§3)
-5. `docker pull` and confirm the CNVkit and hap.py image tags on your machine (§5)
-6. Confirm disk space against the estimate in §7 once real sizes are in hand
+4. ~~Run the ENA `curl` command from WSL to get exact FASTQ run accessions and sizes~~ — done (§3): `ERR2752449` (normal, ~114 Gbases) / `ERR2752450` (tumour, ~303 Gbases); download commands in `docs/data_sources.md` §1
+5. `docker pull` and confirm the CNVkit and hap.py image tags on your machine (§5) — `samtools:1.21--h50ea8bc_0` already confirmed working
+6. Confirm disk space against the ~210–240 GB combined raw-FASTQ estimate in `docs/data_sources.md` §1 (refines the older §7 rule-of-thumb now that real base counts are in hand)
+7. Actually download the two FASTQ pairs (`docs/data_sources.md` §1 download commands) and run the first real `nextflow run main.nf -profile docker,dev ...` per `docs/PHASE1_NOTES.md`
