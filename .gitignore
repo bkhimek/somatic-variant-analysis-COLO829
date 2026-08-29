@@ -15,6 +15,12 @@
 COSMIC_*.tsv
 cosmic_*.tsv
 
+# Downloaded reference/truth-set data — large, publicly re-downloadable, not pipeline output.
+# See docs/data_sources.md for exact download/extraction commands to regenerate this folder.
+# (Scoped to this one directory, not a blanket *.vcf rule, so small hand-built test
+# fixture VCFs elsewhere in the repo — e.g. tests/fixtures/ — aren't silently excluded.)
+/truth_set/
+
 # Nextflow / pipeline run artifacts
 work/
 results/

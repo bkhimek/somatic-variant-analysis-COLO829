@@ -29,7 +29,7 @@ Full research trail and rationale for the decisions below: `docs/PHASE0_FINDINGS
 
 ---
 
-## 3. Somatic truth set — **DECIDED 2026-08-29**
+## 3. Somatic truth set — **DECIDED and DOWNLOADED 2026-08-29**
 
 The plan's original citation (SEQC2 / Fang et al. 2021, *Nature Biotechnology*) is **incorrect for COLO829** — that paper's reference pair is HCC1395/HCC1395BL.
 
@@ -40,19 +40,25 @@ The plan's original citation (SEQC2 / Fang et al. 2021, *Nature Biotechnology*) 
   ```
   https://github.com/nygenome/3-cancer-cell-lines-on-2-sequencers
   ```
-  Direct download (confirmed to resolve to a genuine ~140MB binary, not a 404 or Git LFS stub):
+  Direct download and extraction, **actually run and confirmed working 2026-08-29**:
   ```bash
   mkdir -p ~/projects/somatic-variant-analysis-COLO829/truth_set && cd $_
   curl -LO https://raw.githubusercontent.com/nygenome/3-cancer-cell-lines-on-2-sequencers/master/data/Variants.HighCoverage.tar.gz
-  tar tzf Variants.HighCoverage.tar.gz | grep -i colo   # sanity check before extracting everything
-  tar xzf Variants.HighCoverage.tar.gz                  # bundle has all 3 cell lines x 2 platforms
+  tar tf Variants.HighCoverage.tar.gz | grep -i colo   # sanity check before extracting everything
+  tar xf Variants.HighCoverage.tar.gz                  # NOTE: despite the .tar.gz name this is a PLAIN (non-gzip) tar — do not use -z, GNU tar auto-detects
   ```
   Extract only the **COLO-829 (HiSeqX)** SNV/indel VCF + CNV BED, not the NovaSeq version: HiSeqX is a platform match to the PRJEB27698 FASTQs (also HiSeq X Ten), which removes one axis of difference even though sequencing centre and library prep still differ.
+- **Confirmed file in hand:** `~/projects/somatic-variant-analysis-COLO829/truth_set/COLO-829--COLO-829BL.snv.indel.final.v6.annotated.vcf` — 36,165,120 bytes, uncompressed VCF (not `.vcf.gz`). For hap.py you'll likely want it bgzip-compressed and tabix-indexed:
+  ```bash
+  bgzip -k COLO-829--COLO-829BL.snv.indel.final.v6.annotated.vcf
+  tabix -p vcf COLO-829--COLO-829BL.snv.indel.final.v6.annotated.vcf.gz
+  ```
+- **Companion CNV file also extracted:** `COLO-829--COLO-829BL.cnv.annotated.v6.final.bed` (13,490 bytes) — not the truth set for Module 5, but usable later as an extra Module 7 cross-check alongside Valle-Inclan's SV truth set.
 - **Access:** Open, no login (GitHub-hosted, no dbGaP/EGA involved for this file)
 - **Genome build:** **GRCh38**, confirmed from the paper's methods text — "Sequencing reads were aligned to the GRCh38 reference genome (1000 Genomes version)." (Exact decoy/patch level still TODO — see §2 below, must match what Mutect2/PoN/gnomAD are built against.)
 - **Important clarification (resolved 2026-08-29):** the paper *separately* re-ran their pipeline on GRCh37 purely to compare against Craig et al. 2016's GRCh37-only, EGA-controlled-access truth set (EGAD00001002142, part of EGAS00001001385 — the same Craig 2016 dataset already declined below, not a new resource). That GRCh37 comparison run is not a file we use; it's a paragraph in their methods. **The GRCh38 `Variants.HighCoverage.tar.gz` file above is what we download**, and it's unaffected by the GRCh37 side-comparison. That comparison is actually a positive signal for our choice: the paper reports "we called over 98% of the Craig et al. SNVs" — i.e. NYGC's own calls were independently validated at 98% concordance against the real gold-standard Craig 2016 set, which is exactly the multi-platform consensus truth set we can't access directly (controlled-access).
-- **Bundle:** `Variants.HighCoverage.tar.gz` (140MB) contains all three cell lines' HiSeqX + NovaSeq VCFs and CNV BEDs — only extract the COLO-829 HiSeqX files
-- **High-confidence BED:** TODO — check whether NYGC publishes a callable-regions BED alongside the VCF, or whether the whole genome is treated as callable (record whichever is true) once the archive is extracted
+- **Bundle:** `Variants.HighCoverage.tar.gz` — actual size **73,643,008 bytes (~70.2 MiB)**, confirmed via HTTP `content-length` header matching the downloaded file exactly (README's stated "140MB" was stale/wrong, not a download problem). Contains all three cell lines' HiSeqX + NovaSeq VCFs, CNV BEDs, and SV bedpe files — only the COLO-829 HiSeqX files are relevant here.
+- **High-confidence BED — resolved:** NYGC does **not** publish a callable-regions BED for SNV/indel — the archive only contains a CNV bed and SV/SV-high-confidence bedpe per cell line, no SNV/indel-specific confidence regions. hap.py benchmarking will run without a confidence-region restriction unless a separate callability/mappability filter is applied — a Phase 3 decision, not a Phase 0 blocker.
 - **Raw NYGC sequencing data (for reference, not used by us):** dbGaP study `phs001839.v1.p1` — https://dbgap.ncbi.nlm.nih.gov/beta/study/phs001839.v1.p1/ — controlled access, irrelevant to this pipeline since we source FASTQs from PRJEB27698 instead (§1 above)
 
 **Caveat, carried into `docs/benchmarking_results.md`:** this truth set was generated by NYGC's own pipeline from a separate HiSeqX sequencing run/library prep, not the exact PRJEB27698 FASTQs this pipeline aligns. It is not itself an independent multi-platform consensus (Craig et al. 2016 is that, but is EGA/dbGaP controlled-access only) — it's one lab's own somatic calls. However, per the clarification above, NYGC's own paper already cross-validated these calls at 98% concordance against Craig et al. 2016, which meaningfully strengthens confidence in using it as our benchmark. Still, frame results against it as "agreement with a GATK-family-adjacent somatic pipeline, itself independently validated against the field's gold standard" rather than as unmediated ground truth — the exact caveat the plan's Phase 0 checklist asked to be documented, not quietly assumed.
