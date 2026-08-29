@@ -1,0 +1,15 @@
+gene	role	rationale
+BRAF	oncogene	Most frequently mutated melanoma driver (V600E hotspot); canonical MAPK pathway activator
+NRAS	oncogene	Second most common melanoma MAPK driver, mutually exclusive with BRAF in most tumours
+CDKN2A	tumour_suppressor	Most commonly inactivated melanoma tumour suppressor (p16/ARF locus); frequent deletion target
+PTEN	tumour_suppressor	PI3K/AKT pathway suppressor, frequently lost in melanoma
+TP53	tumour_suppressor	General tumour suppressor, mutated in a subset of melanomas
+TERT	promoter	TERT promoter mutations (C228T/C250T) are among the most recurrent noncoding melanoma mutations
+NF1	tumour_suppressor	RAS pathway suppressor, loss-of-function mutations found in triple-wild-type (BRAF/NRAS/NF1) melanoma
+KIT	oncogene	Activating mutations in acral/mucosal melanoma subtypes
+
+# Seed list for the `dev` Nextflow profile's interval restriction (chr21 + these loci).
+# TODO (Phase 1): resolve each gene to real GRCh38 coordinates (+/- flanking region) and
+# write out dev_intervals.bed; TODO (Phase 5): this list is also Module 8's starting
+# COSMIC CGC cross-reference set — extend it there once driver prioritisation is built,
+# don't duplicate/fork the list.

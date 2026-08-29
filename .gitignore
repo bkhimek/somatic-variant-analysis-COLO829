@@ -1,0 +1,34 @@
+# Raw sequencing / alignment data — never commit
+*.fastq
+*.fastq.gz
+*.fq.gz
+*.bam
+*.bai
+*.cram
+*.crai
+*.fna
+*.fasta
+*.fa
+*.fa.fai
+
+# Licensed / restricted reference data — never commit
+COSMIC_*.tsv
+cosmic_*.tsv
+
+# Nextflow / pipeline run artifacts
+work/
+results/
+.nextflow/
+.nextflow.log*
+
+# VEP cache (large, downloaded not committed)
+vep_cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS / editor cruft
+.DS_Store
+.vscode/

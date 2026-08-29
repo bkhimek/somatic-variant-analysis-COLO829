@@ -1,0 +1,77 @@
+{
+  "run_id": "2026-09-01T09-00-00Z_dev",
+  "pipeline_git_commit": "REPLACE_WITH_ACTUAL_COMMIT_SHA",
+  "run_timestamp": "2026-09-01T09:00:00Z",
+  "nextflow_version": "24.10.5",
+  "profile": "dev",
+  "samples": {
+    "tumour": {
+      "sample_name": "COLO829",
+      "ena_run_accessions": ["TODO_FILL_AFTER_ENA_QUERY"]
+    },
+    "normal": {
+      "sample_name": "COLO829BL",
+      "ena_run_accessions": ["TODO_FILL_AFTER_ENA_QUERY"]
+    }
+  },
+  "reference": {
+    "build": "TODO_CONFIRM_GRCh38_VARIANT",
+    "fasta_source": "TODO",
+    "fasta_md5": "TODO"
+  },
+  "tool_versions": {
+    "fastqc": "0.12.1",
+    "multiqc": "1.21",
+    "bwa_mem2": "2.2.1",
+    "gatk": "4.5.0.0",
+    "happy": "0.3.15-0",
+    "vep": "111",
+    "cnvkit": "0.9.10",
+    "sigprofiler_matrix_generator": "1.3.6",
+    "sigprofiler_assignment": "1.1.5"
+  },
+  "resources": {
+    "panel_of_normals": {
+      "source": "Broad public GCS bucket",
+      "url": "gs://gatk-best-practices/somatic-hg38/1000g_pon.hg38.vcf.gz"
+    },
+    "gnomad_germline_resource": {
+      "version": "TODO_CHECK_VCF_HEADER",
+      "url": "gs://gatk-best-practices/somatic-hg38/af-only-gnomad.hg38.vcf.gz"
+    },
+    "small_exac_common": {
+      "url": "gs://gatk-best-practices/somatic-hg38/small_exac_common_3.hg38.vcf.gz"
+    },
+    "cosmic_cgc": {
+      "version": "v100 (or later — confirm at download time)",
+      "download_date": "TODO"
+    },
+    "vep_cache": {
+      "version": "111",
+      "species": "homo_sapiens"
+    },
+    "sigprofiler_reference_set": {
+      "version": "COSMIC SBS reference set v3.4"
+    }
+  },
+  "truth_set": {
+    "name": "TODO_PENDING_DECISION_SEE_PHASE0_FINDINGS",
+    "citation": "TODO",
+    "url": "TODO",
+    "genome_build": "TODO",
+    "lineage_caveat": "TODO_document_whether_truth_set_sequencing_matches_PRJEB27698_FASTQ_preparation"
+  },
+  "containers": [
+    { "module": "fastqc", "image": "quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0", "digest": "TODO" },
+    { "module": "multiqc", "image": "quay.io/biocontainers/multiqc:1.21--pyhdfd78af_0", "digest": "TODO" },
+    { "module": "alignment", "image": "quay.io/biocontainers/bwa-mem2:2.2.1--he513fc3_0", "digest": "TODO" },
+    { "module": "gatk", "image": "broadinstitute/gatk:4.5.0.0", "digest": "TODO" },
+    { "module": "benchmark", "image": "quay.io/biocontainers/hap.py:0.3.15-0", "digest": "TODO" },
+    { "module": "vep", "image": "ensemblorg/ensembl-vep:release_111", "digest": "TODO" },
+    { "module": "cnvkit", "image": "quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0", "digest": "TODO" }
+  ],
+  "qc_thresholds": {
+    "contamination_warn_threshold": 0.02,
+    "contamination_fail_threshold": 0.05
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "COLO829 Somatic Pipeline Run Manifest",
+  "description": "Auto-generated per pipeline run at results/provenance/run_manifest.json. Captures everything needed to reproduce or audit a run's results, and to know exactly what a given results/ directory was produced against.",
+  "type": "object",
+  "required": [
+    "run_id",
+    "pipeline_git_commit",
+    "run_timestamp",
+    "nextflow_version",
+    "profile",
+    "reference",
+    "tool_versions",
+    "resources",
+    "truth_set",
+    "containers"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "Unique identifier for this run, e.g. UUID or timestamp-based slug."
+    },
+    "pipeline_git_commit": {
+      "type": "string",
+      "description": "Full git SHA of the pipeline repo at the commit this run was executed from. Dirty working tree should be flagged explicitly (e.g. suffix '-dirty')."
+    },
+    "run_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of run start."
+    },
+    "nextflow_version": {
+      "type": "string",
+      "description": "Output of `nextflow -version`, e.g. '24.10.5'."
+    },
+    "profile": {
+      "type": "string",
+      "enum": ["dev", "full"],
+      "description": "Which nextflow.config profile this run used (dev = chr21 + melanoma gene loci interval; full = whole genome)."
+    },
+    "samples": {
+      "type": "object",
+      "description": "Input sample identifiers and their source accessions.",
+      "properties": {
+        "tumour": {
+          "type": "object",
+          "properties": {
+            "sample_name": { "type": "string" },
+            "ena_run_accessions": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "normal": {
+          "type": "object",
+          "properties": {
+            "sample_name": { "type": "string" },
+            "ena_run_accessions": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+    "reference": {
+      "type": "object",
+      "required": ["build", "fasta_source", "fasta_md5"],
+      "properties": {
+        "build": { "type": "string", "description": "e.g. 'GRCh38.d1.vd1' or 'GRCh38 primary assembly' — must match the build the PoN/gnomAD resources were built against." },
+        "fasta_source": { "type": "string", "description": "Download URL for the reference FASTA." },
+        "fasta_md5": { "type": "string" }
+      }
+    },
+    "tool_versions": {
+      "type": "object",
+      "description": "Exact version string for every tool in the DAG, keyed by module.",
+      "properties": {
+        "fastqc": { "type": "string" },
+        "multiqc": { "type": "string" },
+        "bwa_mem2": { "type": "string" },
+        "gatk": { "type": "string", "description": "e.g. '4.5.0.0' — covers MarkDuplicates, GetPileupSummaries, CalculateContamination, Mutect2, LearnReadOrientationModel, FilterMutectCalls." },
+        "happy": { "type": "string" },
+        "vep": { "type": "string" },
+        "cnvkit": { "type": "string" },
+        "sigprofiler_matrix_generator": { "type": "string" },
+        "sigprofiler_assignment": { "type": "string" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "External reference resources and their exact versions/URLs at time of use.",
+      "properties": {
+        "panel_of_normals": {
+          "type": "object",
+          "properties": { "source": { "type": "string" }, "url": { "type": "string" } }
+        },
+        "gnomad_germline_resource": {
+          "type": "object",
+          "properties": { "version": { "type": "string" }, "url": { "type": "string" } }
+        },
+        "small_exac_common": {
+          "type": "object",
+          "properties": { "url": { "type": "string" } }
+        },
+        "cosmic_cgc": {
+          "type": "object",
+          "properties": { "version": { "type": "string" }, "download_date": { "type": "string", "format": "date" } }
+        },
+        "vep_cache": {
+          "type": "object",
+          "properties": { "version": { "type": "string" }, "species": { "type": "string" } }
+        },
+        "sigprofiler_reference_set": {
+          "type": "object",
+          "properties": { "version": { "type": "string", "description": "e.g. COSMIC SBS reference set v3.4" } }
+        }
+      }
+    },
+    "truth_set": {
+      "type": "object",
+      "required": ["name", "citation", "url", "lineage_caveat"],
+      "properties": {
+        "name": { "type": "string" },
+        "citation": { "type": "string" },
+        "url": { "type": "string" },
+        "genome_build": { "type": "string" },
+        "lineage_caveat": {
+          "type": "string",
+          "description": "Explicit note on whether the truth set derives from the same COLO829 sequencing/preparation as the input FASTQs, per the plan's Phase 0 requirement."
+        }
+      }
+    },
+    "containers": {
+      "type": "array",
+      "description": "Every container image used, with exact tag and digest.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "module": { "type": "string" },
+          "image": { "type": "string" },
+          "digest": { "type": "string", "description": "sha256 digest for exact reproducibility, since tags can be repointed." }
+        }
+      }
+    },
+    "qc_thresholds": {
+      "type": "object",
+      "description": "Configurable QC gates actually in effect for this run (from conf/resources.config).",
+      "properties": {
+        "contamination_warn_threshold": { "type": "number" },
+        "contamination_fail_threshold": { "type": "number" }
+      }
+    }
+  }
+}

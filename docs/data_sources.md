@@ -1,0 +1,101 @@
+# Data Sources, Versions, and Licensing
+
+This file is the single source of truth for every external resource this pipeline depends on: where it comes from, what version was actually used, and what its access/licensing terms are. Populate the "confirmed" columns as each resource is actually downloaded (this is a living document, not a one-time Phase 0 artifact) — the goal is that `results/provenance/run_manifest.json` (see `docs/run_manifest.schema.json`) and this file always agree.
+
+Full research trail and rationale for the decisions below: `docs/PHASE0_FINDINGS.md`.
+
+---
+
+## 1. Sequencing data — COLO829 / COLO829BL FASTQs
+
+- **Source:** ENA project [PRJEB27698](https://www.ebi.ac.uk/ena/browser/view/PRJEB27698)
+- **Citation:** Valle-Inclan, J.E. et al. "A multi-platform reference for somatic structural variation detection." *Cell Genomics* 2022. https://www.sciencedirect.com/science/article/pii/S2666979X22000726 (preprint: https://www.biorxiv.org/content/10.1101/2020.10.15.340497v1.full)
+- **Access:** Open, no approval required (confirmed in the paper's data availability statement)
+- **Platform needed:** Illumina HiSeq X Ten short-read WGS only — PRJEB27698 is a multi-platform project (29 SRA experiments, ~4.09 Tbases total across Illumina, 10x Genomics, Oxford Nanopore, PacBio, BioNano). **Do not bulk-download the whole project.**
+- **Run accessions used:** TODO — fill in after running the ENA filereport query below from a machine with unrestricted network access (this sandbox's WebFetch was rate-limited by ENA repeatedly):
+  ```bash
+  curl -s "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=PRJEB27698&result=read_run&fields=run_accession,sample_title,instrument_platform,library_strategy,fastq_ftp,base_count&format=tsv" \
+    | awk -F'\t' 'NR==1 || $3=="ILLUMINA"'
+  ```
+- **Coverage / instrument / library prep:** TODO — record here once the query above is run
+- **File sizes (download + expected BAM):** TODO — see `docs/PHASE0_FINDINGS.md` §7 for a provisional rule-of-thumb estimate pending real numbers
+
+---
+
+## 2. Reference genome
+
+- **Build:** GRCh38 (specific decoy/patch level TODO — confirm which GRCh38 variant, e.g. `GRCh38.d1.vd1` vs. plain primary assembly, matches what the GATK PoN/gnomAD resources below were built against, to avoid contig-mismatch errors in Mutect2)
+- **Source:** TODO — standard Broad/GATK GRCh38 reference bundle, download command + md5 to be recorded here in Phase 1
+
+---
+
+## 3. Somatic truth set — **decision needed, see PHASE0_FINDINGS.md §1**
+
+The plan's original citation (SEQC2 / Fang et al. 2021, *Nature Biotechnology*) is **incorrect for COLO829** — that paper's reference pair is HCC1395/HCC1395BL. Corrected options, pending your decision:
+
+| Candidate | Scope | Access | Citation |
+|---|---|---|---|
+| NYGC open somatic VCF | SNV/indel/CNV/SV | Open, no login | Xiao, W. et al. "Deep whole-genome sequencing of 3 cancer cell lines on 2 sequencing platforms." *Sci Rep* 2019. https://www.nature.com/articles/s41598-019-55636-3. Data: https://www.nygenome.org/bioinformatics/3-cancer-cell-lines-on-2-sequencers/ |
+| Craig et al. 2016 | SNV/indel/CNV, 3-platform consensus | Raw data controlled-access (EGA DAC); call-set-as-supplementary-file status unverified | Craig, D.W. et al. "A somatic reference standard for cancer genome sequencing with COLO829." *Sci Rep* 2016. https://www.nature.com/articles/srep24607 |
+| Valle-Inclan et al. 2022 | **SV only** | Open | See §1 above; truth VCF: https://zenodo.org/records/4716169 |
+
+**Caveat to carry into `docs/benchmarking_results.md` regardless of which is chosen:** whichever truth set is used was generated from a different sequencing run/library prep than the PRJEB27698 FASTQs this pipeline aligns (cell lines drift over passages; this is the exact caveat the plan's Phase 0 checklist called out — "confirm the truth material derives from the same COLO829 lineage/preparation as the input FASTQs").
+
+- **Decision recorded here once made:** TODO
+- **High-confidence BED:** TODO (depends on truth set choice)
+
+---
+
+## 4. GATK somatic resources (hg38)
+
+Source: Broad public GCS bucket `gs://gatk-best-practices/somatic-hg38/` (also mirrored at `https://storage.googleapis.com/gatk-best-practices/somatic-hg38/<filename>` for non-GCP-authenticated download).
+
+| Resource | Path | Used for |
+|---|---|---|
+| Panel of Normals | `gs://gatk-best-practices/somatic-hg38/1000g_pon.hg38.vcf.gz` | Mutect2 `--panel-of-normals` |
+| gnomAD germline resource | `gs://gatk-best-practices/somatic-hg38/af-only-gnomad.hg38.vcf.gz` | Mutect2 `--germline-resource` |
+| Common biallelic sites | `gs://gatk-best-practices/somatic-hg38/small_exac_common_3.hg38.vcf.gz` | GetPileupSummaries |
+
+**gnomAD version actually embedded in `af-only-gnomad.hg38.vcf.gz`:** TODO — check the VCF header after download; the plan's §8 cites "gnomAD v4.1" but the Broad bucket file's actual embedded version needs confirming, they are not necessarily the same curation.
+
+---
+
+## 5. COSMIC Cancer Gene Census
+
+- **Registration:** https://cancer.sanger.ac.uk/cosmic/register (redirects to cosmickb.org's licensing/registration flow — domain changed since the plan was written)
+- **License:** Free for academic/non-profit use with an organisational-email account; commercial use requires a separate paid license. Full terms: https://www.cosmickb.org/terms/
+- **Current release at time of writing:** v100 (plan's §7 cites "v99+" — update once you've actually registered and downloaded, record the exact version pulled)
+- **Repository handling:** CGC TSV is **never committed** — `.gitignore` excludes `COSMIC_*.tsv`; only parsing code and these download instructions live in the repo (mirrors the PGx project's CPIC/PharmVar handling)
+- **Downloaded version / date:** TODO — fill in once you've registered and pulled the file
+
+---
+
+## 6. Mutational signature tools — corrected package names
+
+The plan's Module 9 spec names `SigProfilerSingleBase`, which **does not exist on PyPI** (confirmed by a failed `pip install` in this session). The correct Alexandrov Lab packages for "decompose the observed 96-channel spectrum against COSMIC SBS reference set v3.4":
+
+- `SigProfilerMatrixGenerator` (PyPI, latest 1.3.6) — builds the 96-channel SBS matrix from the PASS VCF
+- `SigProfilerAssignment` (PyPI, latest 1.1.5) — attributes the observed spectrum against a reference signature set (this replaces the "attribution" role the plan assigned to the nonexistent package)
+
+Pin exact versions in `requirements.txt` once Module 9 is implemented (Phase 6).
+
+---
+
+## 7. CNVkit / hap.py containers
+
+| Tool | Image | Status |
+|---|---|---|
+| CNVkit | `quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0` | Plan's original choice confirmed valid (0.9.10-0 exists in bioconda); verify exact tag with a live `docker pull` before wiring into `cnvkit.nf`, since biocontainers build-hash suffixes can shift between rebuilds |
+| hap.py | `quay.io/biocontainers/hap.py:0.3.15-0` (recommended, replaces the plan's `pkrusche/hap.py:latest`) | `pkrusche/hap.py:latest` confirmed unmaintained (~9 years since last push) — switched to the actively-rebuilt biocontainers image for consistency with the rest of the pipeline's `quay.io/biocontainers/*` convention |
+
+---
+
+## 8. BQSR decision (carried over from the plan, unchanged)
+
+Base Quality Score Recalibration is **deliberately not applied** before Mutect2. Per the Broad's current somatic best-practices guidance, BQSR's benefit for somatic calling is less clear than for germline, and is considered optional for WGS cell-line data without FFPE artefacts. Documented here per the plan's instruction not to leave this quietly assumed.
+
+---
+
+## 9. gnomAD population AF resource for VEP annotation
+
+Same open question as item 4 (gnomAD v4.1 vs. whatever's embedded in the Broad bucket file) — Module 6's annotation step and Module 4's germline-resource filtering should cite a consistent gnomAD version; confirm and record here once both are downloaded.
