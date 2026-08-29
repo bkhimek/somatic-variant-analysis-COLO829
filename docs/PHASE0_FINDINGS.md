@@ -102,6 +102,8 @@ Confirmed COSMIC has moved its licensing/registration flow to **cosmickb.org** (
 
 **This step needs you personally:** registration requires an organisational email and manual approval — I cannot create this account. Once registered, download the Cancer Gene Census TSV, note the exact version in `docs/data_sources.md`, and confirm it lands in `.gitignore` (already planned in repo structure, §9 of the plan) before anything else touches it.
 
+**Update 2026-08-29: registration attempted, deferred — not currently blocking.** COSMIC's account form asks for an organisation type (For-Profit Company / Not-For-Profit Hospital / Not-For-Profit Institution-Academic Research Centre / Private Hospital); this project is a personal, non-commercial portfolio effort with no institutional affiliation, so none of those categories cleanly fits a private individual, and registration is on hold for now. This is fine to leave open: **COSMIC's Cancer Gene Census is only consumed in Phase 5** (the oncogenicity/actionability interpretation layer, cross-referencing CGC driver genes against called variants) — Phases 1-4 (QC/alignment, contamination + Mutect2, benchmarking, CNVkit) never touch it. If registration is still unresolved when Phase 5 starts, [CIViC](https://civicdb.org) is a fully open, no-registration alternative covering similar oncogenicity/actionability ground — not a like-for-like replacement for CGC's driver-gene census, but a legitimate documented fallback rather than a hard stop. If a paying client engagement materialises before then, registering as "For-Profit Company" with COSMIC's paid commercial license at that point is the honest path, not something to route around.
+
 ---
 
 ## 7. Compute / storage estimate (provisional — refine with real ENA numbers)
@@ -137,7 +139,7 @@ Nothing blocks starting Phase 1 (QC/alignment, Modules 1–2) on the `dev` profi
 **Needs your direct action (cannot be done from this sandbox):**
 1. ~~Decide the truth-set strategy~~ — done (§1): NYGC open VCF, HiSeqX version
 2. ~~Find a working download URL and download it~~ — done (§1): GitHub source, downloaded and extracted; `COLO-829--COLO-829BL.snv.indel.final.v6.annotated.vcf` confirmed in hand
-3. Register at COSMIC/cosmickb.org and download the CGC TSV (§6)
+3. Register at COSMIC/cosmickb.org and download the CGC TSV (§6) — **deferred, not blocking**: not needed until Phase 5 (oncogenicity/actionability interpretation); registration is on hold pending either a clearer fit for a private-individual account or a future commercial engagement, with CIViC noted as an open fallback if it's still unresolved by then
 4. ~~Run the ENA `curl` command from WSL to get exact FASTQ run accessions and sizes~~ — done (§3): `ERR2752449` (normal, ~114 Gbases) / `ERR2752450` (tumour, ~303 Gbases); download commands in `docs/data_sources.md` §1
 5. `docker pull` and confirm the CNVkit and hap.py image tags on your machine (§5) — `samtools:1.21--h50ea8bc_0` already confirmed working
 6. Confirm disk space against the ~210–240 GB combined raw-FASTQ + ~3 GB reference estimate in `docs/data_sources.md` §1/§2 (refines the older §7 rule-of-thumb now that real base counts are in hand)
