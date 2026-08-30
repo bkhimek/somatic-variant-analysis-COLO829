@@ -16,18 +16,22 @@ nextflow.enable.dsl = 2
 
 include { SOMATIC } from './workflows/somatic.nf'
 
-// ---- Required params: fail fast with a clear message rather than a cryptic NPE mid-DAG ----
-def required = [
-    'tumour_reads_1', 'tumour_reads_2',
-    'normal_reads_1', 'normal_reads_2',
-    'reference_fasta'
-]
-def missing = required.findAll { params[it] == null }
-if (missing) {
-    exit 1, "Missing required param(s): ${missing.join(', ')}. See docs/PHASE1_NOTES.md for a full run example."
-}
-
 workflow {
+
+    // ---- Required params: fail fast with a clear message rather than a cryptic NPE mid-DAG ----
+    // Moved inside the workflow block 2026-08-30 -- Nextflow 26.x's stricter parser rejects
+    // top-level imperative statements (def/if) mixed with declarative script elements
+    // (include/workflow), the same category of break already hit and fixed in nextflow.config.
+    // See docs/PHASE1_NOTES.md for detail.
+    def required = [
+        'tumour_reads_1', 'tumour_reads_2',
+        'normal_reads_1', 'normal_reads_2',
+        'reference_fasta'
+    ]
+    def missing = required.findAll { params[it] == null }
+    if (missing) {
+        exit 1, "Missing required param(s): ${missing.join(', ')}. See docs/PHASE1_NOTES.md for a full run example."
+    }
 
     // Sample IDs match the naming already used throughout docs/ and the run manifest
     // (COLO829 = tumour, COLO829BL = matched normal) -- keep these consistent, Phase 2's
