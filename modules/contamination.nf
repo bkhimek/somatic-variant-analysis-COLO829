@@ -23,16 +23,25 @@ process GET_PILEUP_SUMMARIES {
     tuple val(sample_id), path("${sample_id}.pileups.table"), emit: pileups
 
     script:
-    // NO_FILE sentinel pattern (see assets/NO_FILE) -- params.interval_list is null on the
-    // `full` profile, so interval_file is a harmless empty placeholder rather than a real BED
-    // in that case, and -L is omitted entirely.
-    def interval_arg = interval_file.name != 'NO_FILE' ? "-L ${interval_file}" : ''
+    // Found via execution 2026-08-30: unlike Mutect2, GATK's GetPileupSummaries genuinely
+    // REQUIRES -L/--intervals -- omitting it entirely (the original NO_FILE-sentinel design,
+    // matching how the same sentinel makes -L optional for Mutect2 in modules/mutect2.nf) fails
+    // with "A USER ERROR has occurred: Argument intervals was missing: Argument 'intervals' is
+    // required". Standard GATK Best Practices fix: always restrict to the common-sites VCF
+    // itself as the baseline interval set (those are the only positions GetPileupSummaries ever
+    // needs to check), and additionally intersect with a real interval_list when one is given
+    // (the dev-profile driver-gene BED) via --interval-set-rule INTERSECTION, narrowing further
+    // to just the genes' overlap with common SNP sites rather than replacing the sites
+    // restriction outright.
+    def interval_args = interval_file.name != 'NO_FILE'
+        ? "-L ${interval_file} -L ${common_biallelic_sites} --interval-set-rule INTERSECTION"
+        : "-L ${common_biallelic_sites}"
     """
     gatk GetPileupSummaries \\
         -I ${bam} \\
         -R ${reference_fasta} \\
         -V ${common_biallelic_sites} \\
-        ${interval_arg} \\
+        ${interval_args} \\
         -O ${sample_id}.pileups.table
     """
 }
