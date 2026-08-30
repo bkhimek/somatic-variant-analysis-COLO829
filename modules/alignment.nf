@@ -27,7 +27,9 @@ process BWA_MEM2_INDEX {
 }
 
 process BWA_MEM2_ALIGN {
-    tag "${sample_id}"
+    // Closure form -- see note in modules/fastqc.nf (Nextflow 26.x no longer implicitly
+    // lazy-evaluates a plain GString directive that references an input variable).
+    tag { sample_id }
     container 'quay.io/biocontainers/bwa-mem2:2.2.1--he513fc3_0'
 
     input:
@@ -50,7 +52,9 @@ process BWA_MEM2_ALIGN {
 }
 
 process SAMTOOLS_SORT {
-    tag "${sample_id}"
+    // Closure form -- see note in modules/fastqc.nf (Nextflow 26.x no longer implicitly
+    // lazy-evaluates a plain GString directive that references an input variable).
+    tag { sample_id }
     // TODO: exact build-hash tag suffix not confirmed from this sandbox (quay.io's tag
     // list is blocked by robots.txt for automated fetching, same limitation noted for
     // CNVkit/hap.py in docs/data_sources.md). Confirm the real tag with
@@ -58,7 +62,7 @@ process SAMTOOLS_SORT {
     // https://quay.io/repository/samtools/samtools?tab=tags directly) before first run,
     // and update this line to the exact resolved tag.
     container 'quay.io/biocontainers/samtools:1.21--h50ea8bc_0'
-    publishDir "${params.outdir}/alignment/${sample_id}", mode: 'copy'
+    publishDir { "${params.outdir}/alignment/${sample_id}" }, mode: 'copy'
 
     input:
     tuple val(sample_id), path(sam_file)
@@ -74,9 +78,11 @@ process SAMTOOLS_SORT {
 }
 
 process MARK_DUPLICATES {
-    tag "${sample_id}"
+    // Closure form -- see note in modules/fastqc.nf (Nextflow 26.x no longer implicitly
+    // lazy-evaluates a plain GString directive that references an input variable).
+    tag { sample_id }
     container 'broadinstitute/gatk:4.5.0.0'
-    publishDir "${params.outdir}/alignment/${sample_id}", mode: 'copy'
+    publishDir { "${params.outdir}/alignment/${sample_id}" }, mode: 'copy'
 
     input:
     tuple val(sample_id), path(sorted_bam), path(sorted_bai)

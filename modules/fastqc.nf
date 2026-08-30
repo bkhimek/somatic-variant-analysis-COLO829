@@ -4,9 +4,15 @@
 // one thing Phase 1 adds beyond a straight reuse of Project 4's QC step.
 
 process FASTQC {
-    tag "${sample_id}"
+    // tag/publishDir written as closures (found via execution 2026-08-30, Nextflow 26.x):
+    // a plain GString directive like tag "${sample_id}" is evaluated before task inputs are
+    // bound, so sample_id isn't in scope yet -- "No such variable: sample_id". Older Nextflow
+    // (24.10.5) silently made this work via implicit lazy-evaluation of GStrings referencing
+    // input names; 26.x no longer does, so it must be an explicit closure. Same fix applied to
+    // every other tag/publishDir in modules/alignment.nf that references an input variable.
+    tag { sample_id }
     container 'quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0'
-    publishDir "${params.outdir}/qc/fastqc/${sample_id}", mode: 'copy'
+    publishDir { "${params.outdir}/qc/fastqc/${sample_id}" }, mode: 'copy'
 
     input:
     tuple val(sample_id), path(reads1), path(reads2)
