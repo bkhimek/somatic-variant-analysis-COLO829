@@ -30,15 +30,32 @@ workflow SOMATIC {
     MULTIQC(fastqc_files_ch)
 
     // ---- Module 2: Alignment ----
-    // Index is built once from the reference and reused for both samples -- Nextflow
-    // caches this on -resume, so it only actually runs on the first invocation.
-    BWA_MEM2_INDEX(reference_fasta)
+    // Pre-built-index auto-detection (added 2026-08-30, after the full-genome bwa-mem2 index
+    // was built on a one-off high-RAM AWS instance -- see docs/data_sources.md §2 and
+    // docs/PHASE1_NOTES.md for why: bwa-mem2 index needs ~87-110GB RAM to build, which no
+    // desktop/laptop in this project has, but only ~19GB to USE once built). If the five
+    // bwa-mem2 index files already sit alongside reference_fasta (same convention bwa-mem2
+    // itself uses -- sibling files named "<fasta>.0123", "<fasta>.amb", etc.), skip rebuilding
+    // entirely and feed BWA_MEM2_ALIGN the existing files. Otherwise (e.g. the chr21 dev-profile
+    // slice, which has no pre-built index) fall back to building it in-pipeline as before --
+    // Nextflow's -resume still caches that build across runs either way.
+    def prebuilt_index_marker = file("${reference_fasta}.bwt.2bit.64")
+    if (prebuilt_index_marker.exists()) {
+        log.info "Pre-built bwa-mem2 index found alongside ${reference_fasta} -- skipping BWA_MEM2_INDEX"
+        index_files_ch = Channel.fromPath("${reference_fasta}.{0123,amb,ann,bwt.2bit.64,pac}").collect()
+    } else {
+        // Index is built once from the reference and reused for both samples -- Nextflow
+        // caches this on -resume, so it only actually runs on the first invocation.
+        BWA_MEM2_INDEX(reference_fasta)
 
-    // .first() turns the index output into a broadcastable value: BWA_MEM2_INDEX runs once
-    // and emits once, but samples_ch has two items (tumour, normal). Without .first(), Nextflow
-    // zips the two channels positionally and the index channel runs dry after the first sample --
-    // BWA_MEM2_ALIGN would silently only fire once instead of twice.
-    BWA_MEM2_ALIGN(samples_ch, reference_fasta, BWA_MEM2_INDEX.out.index.first())
+        // .first() turns the index output into a broadcastable value: BWA_MEM2_INDEX runs once
+        // and emits once, but samples_ch has two items (tumour, normal). Without .first(), Nextflow
+        // zips the two channels positionally and the index channel runs dry after the first sample --
+        // BWA_MEM2_ALIGN would silently only fire once instead of twice.
+        index_files_ch = BWA_MEM2_INDEX.out.index.first()
+    }
+
+    BWA_MEM2_ALIGN(samples_ch, reference_fasta, index_files_ch)
     SAMTOOLS_SORT(BWA_MEM2_ALIGN.out.sam)
     MARK_DUPLICATES(SAMTOOLS_SORT.out.bam)
 

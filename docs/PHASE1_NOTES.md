@@ -1,7 +1,17 @@
 # Phase 1 — QC and Alignment (Modules 1–2): implementation notes
 
-**Date:** 2026-08-29 (updated same day after the first real run)
+**Date:** 2026-08-29 (updated same day after the first real run; updated again 2026-08-30 after the full-genome index build)
 **Status:** Code has now actually run — see "First real run — findings" below. Originally built in a Cowork sandbox with no Nextflow, no Docker, and no access to the real FASTQs or reference; I tried to install Nextflow there to lint/run it (`get.nextflow.io` and GitHub releases were both blocked by that sandbox's network policy) and couldn't, so it was only checked by manual read-through before delivery. Manual review caught two real DSL2 channel-cardinality bugs before delivery (both classic Nextflow gotchas — see `workflows/somatic.nf` comments at the `.flatMap` and `BWA_MEM2_INDEX.out.index.first()` lines), but as flagged at the time, review alone isn't the same guarantee as an actual run — and indeed, the first real run surfaced two things review missed (below).
+
+---
+
+## Full-genome bwa-mem2 index — built 2026-08-30, pipeline updated to use it
+
+Built on a one-off AWS `r6i.4xlarge` instance (128GB RAM, ~$1-2 total cost, eu-north-1) rather than locally — the 32GB local machine can't build it (§ above / `docs/data_sources.md` §2: needs ~87-110GB RAM), but only needs ~19GB to *use* an already-built index, which is well within reach locally. Index build itself took **22.4 minutes** on the AWS instance (faster than the ~50min benchmark quoted earlier, likely due to more vCPUs), producing five files (`Homo_sapiens_assembly38.fasta.{0123,amb,ann,bwt.2bit.64,pac}`, ~16.9GB total) alongside the reference FASTA in `reference/`.
+
+**`workflows/somatic.nf` updated to auto-detect this.** Rather than adding a new param to remember to set, the workflow now checks whether `${reference_fasta}.bwt.2bit.64` already exists next to whatever `--reference_fasta` points at: if it does (as is now true for the full-genome reference), `BWA_MEM2_INDEX` is skipped entirely and the existing index files are fed straight to `BWA_MEM2_ALIGN`; if not (e.g. the chr21 dev-profile slice, which has no pre-built index), it falls back to building the index in-pipeline as before. This means the same `nextflow run` command works whether or not a pre-built index exists — no extra flag needed.
+
+**Next step, not yet done:** rerun the same 10,000-read-pair subsample (`fastq_dev_sample/`) against the *full* genome now that this index exists, to get the real mapped-fraction/duplication-rate numbers the chr21-only run couldn't provide (see "What this run does NOT validate" below) — that's what actually closes out the plan's Phase 1 exit criterion.
 
 ---
 

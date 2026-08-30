@@ -38,3 +38,15 @@ __pycache__/
 # OS / editor cruft
 .DS_Store
 .vscode/
+*.fasta.fai
+
+# bwa-mem2 index files and GATK sequence dictionaries -- regenerable from the reference FASTA,
+# never commit. Caught the hard way 2026-08-30: these extensions weren't covered by the
+# *.fasta/*.fa rules above.
+*.0123
+*.amb
+*.ann
+*.bwt.2bit.64
+*.pac
+*.dict
+/reference/
