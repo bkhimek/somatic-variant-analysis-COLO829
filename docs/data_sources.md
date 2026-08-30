@@ -117,6 +117,10 @@ Source: Broad public GCS bucket `gs://gatk-best-practices/somatic-hg38/` (also m
 
 **gnomAD version actually embedded in `af-only-gnomad.hg38.vcf.gz`:** TODO — check the VCF header after download; the plan's §8 cites "gnomAD v4.1" but the Broad bucket file's actual embedded version needs confirming, they are not necessarily the same curation.
 
+**`.tbi` index files:** Phase 2's `modules/reference_prep.nf` (`INDEX_VCF`) builds a tabix index for all three resource VCFs unconditionally if one doesn't already sit alongside them — see `docs/PHASE2_NOTES.md`. Whether the Broad bucket publishes `.tbi` companions alongside these files hasn't been independently confirmed from this session; it doesn't block anything either way.
+
+**Melanoma driver-gene interval BED — RESOLVED 2026-08-30:** `data/gene_lists/dev_intervals.bed` now has real GRCh38 coordinates for all 8 genes in `melanoma_genes.tsv`, resolved via Ensembl's REST API (`https://rest.ensembl.org/lookup/symbol/homo_sapiens/<GENE>?content-type=application/json`) — each lookup's `assembly_name` confirmed `"GRCh38"` before use, not assumed. Padded ±2000bp per the file's own TODO note. Full detail and the TERT-promoter caveat: `docs/PHASE2_NOTES.md`.
+
 ---
 
 ## 5. COSMIC Cancer Gene Census

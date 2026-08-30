@@ -1,8 +1,9 @@
 #!/usr/bin/env nextflow
 /*
  * COLO829 Tumour-Normal Somatic Genomics Pipeline
- * Entry point — Phase 1 wires up Modules 1-2 (QC, Alignment) via workflows/somatic.nf.
- * Phase 2+ will extend the same SOMATIC workflow rather than adding new entry points.
+ * Entry point — Phase 1 wired up Modules 1-2 (QC, Alignment); Phase 2 (2026-08-30) extends the
+ * same SOMATIC workflow with Modules 3-4 (contamination estimation, Mutect2 somatic calling).
+ * Phase 3+ will keep extending this same workflow rather than adding new entry points.
  *
  * Run:
  *   conda activate nextflow
@@ -10,6 +11,11 @@
  *   nextflow run main.nf -profile docker,full -params-file conf/full_params.yaml  # real WGS run
  * (conf/*_params.yaml are not created yet -- see docs/PHASE1_NOTES.md; until then, pass
  * every required param on the command line as shown in the run instructions.)
+ *
+ * As of Phase 2, every run also needs --panel_of_normals, --germline_resource, and
+ * --common_biallelic_sites (docs/data_sources.md §4) -- a Phase-1-only run without them will
+ * now fail fast with a clear message rather than silently skipping Modules 3-4, since the plan
+ * extends one workflow rather than making these modules optional. See docs/PHASE2_NOTES.md.
  */
 
 nextflow.enable.dsl = 2
@@ -26,7 +32,10 @@ workflow {
     def required = [
         'tumour_reads_1', 'tumour_reads_2',
         'normal_reads_1', 'normal_reads_2',
-        'reference_fasta'
+        'reference_fasta',
+        // Added Phase 2 (2026-08-30) for Modules 3-4 -- see docs/data_sources.md §4 for
+        // provenance/download commands for all three.
+        'panel_of_normals', 'germline_resource', 'common_biallelic_sites'
     ]
     def missing = required.findAll { params[it] == null }
     if (missing) {
@@ -42,8 +51,11 @@ workflow {
     )
 
     reference_fasta = file(params.reference_fasta)
+    panel_of_normals = file(params.panel_of_normals)
+    germline_resource = file(params.germline_resource)
+    common_biallelic_sites = file(params.common_biallelic_sites)
 
-    SOMATIC(samples_ch, reference_fasta)
+    SOMATIC(samples_ch, reference_fasta, panel_of_normals, germline_resource, common_biallelic_sites)
 
     // A custom workflow.onComplete{} summary block used to live here (added, moved inside this
     // block for Nextflow 26.x's parser, then wrapped in try/catch -- see git history / earlier

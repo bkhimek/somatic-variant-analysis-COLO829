@@ -8,8 +8,9 @@ TERT	promoter	TERT promoter mutations (C228T/C250T) are among the most recurrent
 NF1	tumour_suppressor	RAS pathway suppressor, loss-of-function mutations found in triple-wild-type (BRAF/NRAS/NF1) melanoma
 KIT	oncogene	Activating mutations in acral/mucosal melanoma subtypes
 
-# Seed list for the `dev` Nextflow profile's interval restriction (chr21 + these loci).
-# TODO (Phase 1): resolve each gene to real GRCh38 coordinates (+/- flanking region) and
-# write out dev_intervals.bed; TODO (Phase 5): this list is also Module 8's starting
-# COSMIC CGC cross-reference set — extend it there once driver prioritisation is built,
-# don't duplicate/fork the list.
+# Seed list for the `dev` Nextflow profile's interval restriction.
+# RESOLVED (Phase 2, 2026-08-30): each gene resolved to real GRCh38 coordinates (+/- 2000bp
+# flanking) via Ensembl's REST API -- see dev_intervals.bed and docs/PHASE2_NOTES.md for the
+# full method and an important caveat on what it does/doesn't validate against current test data.
+# TODO (Phase 5): this list is also Module 8's starting COSMIC CGC cross-reference set --
+# extend it there once driver prioritisation is built, don't duplicate/fork the list.

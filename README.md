@@ -13,26 +13,35 @@ Two things the plan asked to verify turned out to need correcting, not just conf
 
 Everything else on the Phase 0 checklist (FASTQ accessions, truth set — decided, downloaded, extracted — GATK hg38 resources, container images, COSMIC registration process, dev/full Nextflow profiles, run manifest schema) is resolved — see `docs/PHASE0_FINDINGS.md` for the full breakdown.
 
-## Phase 1 status (2026-08-29)
+## Phase 1 status (2026-08-30) — SIGNED OFF
 
-Modules 1–2 (QC, Alignment) are implemented in `modules/`, `workflows/somatic.nf`, and `main.nf`, following the plan's module spec. **Not yet run** — built without Nextflow/Docker/data access in this sandbox, so it's been checked by manual DSL2 review only (which did catch and fix two real channel-cardinality bugs) rather than an actual execution. **Read `docs/PHASE1_NOTES.md` before your first run** — it lists an unconfirmed container tag, a design note on why bwa-mem2 and samtools are separate processes, and an important limitation on what the `dev` profile does and doesn't speed up.
+Modules 1–2 (QC, Alignment) ran successfully end-to-end against the real full genome, with ~99%/98.8% mapped fractions confirming the pipeline is correct. Getting there took five real bugs found only by actually executing the code (three Nextflow 26.x compatibility breaks, one resource-sizing correction, one cosmetic handler issue) — full story in `docs/PHASE1_NOTES.md`.
+
+## Phase 2 status (2026-08-30)
+
+Modules 3–4 (Contamination estimation, Mutect2 somatic calling) are implemented in `modules/contamination.nf`, `modules/mutect2.nf`, `modules/reference_prep.nf`, extending the same `workflows/somatic.nf`. **Not yet run** — built and reviewed this session, same "review isn't the same as execution" caveat as Phase 1 applies. **Read `docs/PHASE2_NOTES.md` before your first Phase 2 run** — it covers the new required params, the reference/VCF-index auto-prep, and an important caveat on what the current dev-profile test data can and can't validate for Mutect2 specifically.
 
 ## Repo layout
 
 ```
 COLO829-somatic-pipeline/
-├── main.nf                   Phase 1 entry point (this batch)
+├── main.nf                   Entry point (Phase 1 + Phase 2)
 ├── nextflow.config            dev/full profiles + docker/singularity profiles
+├── assets/NO_FILE             optional-input sentinel (Phase 2)
 ├── modules/
-│   ├── fastqc.nf              Module 1: FASTQC + MULTIQC (this batch)
-│   └── alignment.nf           Module 2: BWA-MEM2 -> sort -> MarkDuplicates (this batch)
-├── workflows/somatic.nf        wires Modules 1-2 together (this batch)
+│   ├── fastqc.nf              Module 1: FASTQC + MULTIQC
+│   ├── alignment.nf           Module 2: BWA-MEM2 -> sort -> MarkDuplicates
+│   ├── reference_prep.nf      Phase 2: .fai/.dict/VCF-index auto-prep
+│   ├── contamination.nf       Module 3: GetPileupSummaries + CalculateContamination
+│   └── mutect2.nf             Module 4: Mutect2 + LearnReadOrientationModel + FilterMutectCalls
+├── workflows/somatic.nf        wires Modules 1-4 together
 ├── bin/                       (Phase 5+)
-├── conf/resources.config      configurable QC thresholds
-├── data/gene_lists/           melanoma driver gene seed list
+├── conf/resources.config      QC + contamination thresholds (includeConfig'd from Phase 2)
+├── data/gene_lists/           melanoma driver gene seed list + dev_intervals.bed (real GRCh38 coords)
 ├── docs/
 │   ├── PHASE0_FINDINGS.md     Phase 0 research report
-│   ├── PHASE1_NOTES.md        Phase 1 implementation notes -- read before running (this batch)
+│   ├── PHASE1_NOTES.md        Phase 1 implementation notes (signed off)
+│   ├── PHASE2_NOTES.md        Phase 2 implementation notes -- read before running
 │   ├── data_sources.md        living data-source/version/licensing ledger
 │   ├── run_manifest.schema.json + run_manifest.example.json
 │   ├── somatic_interpretation.md   (Phase 5+)

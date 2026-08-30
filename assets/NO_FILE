@@ -1,0 +1,8 @@
+This is an intentionally empty placeholder file.
+
+It exists so Nextflow processes can accept an "optional" path input using the standard
+nf-core NO_FILE sentinel pattern: when a real file (e.g. params.interval_list) isn't set,
+the workflow feeds this file in its place, and process scripts check
+`if (some_input.name != 'NO_FILE')` to decide whether to include the corresponding CLI flag
+(e.g. `-L`). See workflows/somatic.nf and modules/contamination.nf / modules/mutect2.nf.
+Do not delete -- several Phase 2 processes reference this exact path.
