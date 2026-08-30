@@ -1,6 +1,6 @@
 # COLO829 Tumour-Normal Somatic Genomics Pipeline
 
-**Status:** Phase 1 (QC + alignment) written, not yet run on real data — see `docs/PHASE1_NOTES.md` for what to check before your first `nextflow run`, `docs/PHASE0_FINDINGS.md` for the Phase 0 research trail, and `docs/data_sources.md` for the living data-source/version ledger.
+**Status:** Phase 1 (QC + alignment) and Phase 2 (contamination + Mutect2 somatic calling) both signed off — see `docs/PHASE1_NOTES.md` and `docs/PHASE2_NOTES.md` for what each phase actually proved (and explicitly didn't), `docs/PHASE0_FINDINGS.md` for the Phase 0 research trail, and `docs/data_sources.md` for the living data-source/version ledger.
 
 Tumour-normal somatic variant calling (GATK Mutect2) benchmarked against a COLO829/COLO829BL truth set, with copy-number (CNVkit), mutational signature (SigProfilerMatrixGenerator + SigProfilerAssignment), and oncogenicity/actionability interpretation layers. Full design rationale: see the project plan (kept alongside this repo, not committed here — v1.1 as of 2026-08-27).
 
@@ -17,9 +17,9 @@ Everything else on the Phase 0 checklist (FASTQ accessions, truth set — decide
 
 Modules 1–2 (QC, Alignment) ran successfully end-to-end against the real full genome, with ~99%/98.8% mapped fractions confirming the pipeline is correct. Getting there took five real bugs found only by actually executing the code (three Nextflow 26.x compatibility breaks, one resource-sizing correction, one cosmetic handler issue) — full story in `docs/PHASE1_NOTES.md`.
 
-## Phase 2 status (2026-08-30)
+## Phase 2 status (2026-08-30) — SIGNED OFF
 
-Modules 3–4 (Contamination estimation, Mutect2 somatic calling) are implemented in `modules/contamination.nf`, `modules/mutect2.nf`, `modules/reference_prep.nf`, extending the same `workflows/somatic.nf`. **Not yet run** — built and reviewed this session, same "review isn't the same as execution" caveat as Phase 1 applies. **Read `docs/PHASE2_NOTES.md` before your first Phase 2 run** — it covers the new required params, the reference/VCF-index auto-prep, and an important caveat on what the current dev-profile test data can and can't validate for Mutect2 specifically.
+Modules 3–4 (Contamination estimation, Mutect2 somatic calling) ran successfully end-to-end on the `dev` profile (driver-gene-BED-restricted), confirming `GetPileupSummaries` → `CalculateContamination` → `Mutect2` → `LearnReadOrientationModel` → `FilterMutectCalls` are all wired correctly against the real reference and real GATK resource bundles. Getting there took two real bugs found only by execution (`GetPileupSummaries`'s mandatory `-L`, a GATK/JVM-in-Docker heap-sizing issue) plus one real finding that isn't a bug: research into GATK's own guidance, Broad's production WDL, and nf-core/sarek confirmed unsharded genome-wide Mutect2 execution is not how this tool is meant to run anywhere, at any memory size available on this machine. Real interval-scatter/gather architecture (and likely another one-off cloud compute burst) are explicitly deferred to Phase 3, when real full-depth benchmarking data makes them actually necessary — full story in `docs/PHASE2_NOTES.md`.
 
 ## Repo layout
 
