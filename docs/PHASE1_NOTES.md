@@ -13,6 +13,8 @@ Built on a one-off AWS `r6i.4xlarge` instance (128GB RAM, ~$1-2 total cost, eu-n
 
 **Next step, not yet done:** rerun the same 10,000-read-pair subsample (`fastq_dev_sample/`) against the *full* genome now that this index exists, to get the real mapped-fraction/duplication-rate numbers the chr21-only run couldn't provide (see "What this run does NOT validate" below) — that's what actually closes out the plan's Phase 1 exit criterion.
 
+**Nextflow version bump broke `nextflow.config`, found and fixed 2026-08-30.** Between the chr21 run (Nextflow 24.10.5) and this one, the local `nextflow` auto-updated to 26.04.3. That newer version's config parser is stricter and rejects `nextflow.config:30:1: Variable declarations cannot be mixed with config statements` — a `def home_dir = System.getenv('HOME')` line, left over from an earlier draft and never actually referenced anywhere else in the file. Removed it; nothing depended on it. Worth knowing for later: this pipeline hasn't been tested against 26.x otherwise, so treat any other Nextflow-version-related config quirks as plausible until proven otherwise, not a one-off.
+
 ---
 
 ## First real run — findings (2026-08-29)
