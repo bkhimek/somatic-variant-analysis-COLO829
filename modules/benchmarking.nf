@@ -48,7 +48,12 @@ process PREPARE_TRUTH_VCF {
 }
 
 process HAPPY_BENCHMARK {
-    container 'quay.io/biocontainers/hap.py:0.3.15-0'
+    // Found via execution 2026-08-30: quay.io/biocontainers/hap.py:0.3.15-0 doesn't exist
+    // ("manifest unknown") -- same root cause as PREPARE_TRUTH_VCF's earlier htslib miss above:
+    // biocontainers tags are always "<version>--<conda-build-string>" (double dash), not
+    // "<version>-<N>". Verified this exact tag with a real `docker pull` before shipping it
+    // (rather than guessing a plausible-looking build string again) -- confirmed working.
+    container 'quay.io/biocontainers/hap.py:0.3.14--py27h5c5a3ab_0'
     publishDir "${params.outdir}/benchmarking", mode: 'copy'
 
     input:
