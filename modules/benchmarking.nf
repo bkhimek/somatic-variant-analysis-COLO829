@@ -17,7 +17,16 @@
 //     positive calls, not force-included).
 
 process PREPARE_TRUTH_VCF {
-    container 'quay.io/biocontainers/htslib:1.21--h566b1c6_0'
+    // Found via execution 2026-08-30: quay.io/biocontainers/htslib:1.21--h566b1c6_0 doesn't
+    // exist ("manifest unknown") -- that tag was guessed by pattern-matching the samtools image
+    // tag's build-hash convention rather than actually checked. Verified via research afterwards
+    // rather than guessing again: reusing quay.io/biocontainers/samtools:1.21--h50ea8bc_0 (already
+    // confirmed working in this pipeline since Phase 1) is both simpler and correct -- its
+    // bioconda recipe pulls in htslib as a real runtime dependency (via htslib's own
+    // `run_exports`, not just a build-time link), which installs the bgzip/tabix binaries into
+    // the same conda environment alongside samtools itself. Avoids pulling a second, separately
+    // unverified image for what both tools already ship together. See docs/PHASE3_NOTES.md.
+    container 'quay.io/biocontainers/samtools:1.21--h50ea8bc_0'
     publishDir "${params.outdir}/benchmarking/truth_set", mode: 'copy'
 
     input:

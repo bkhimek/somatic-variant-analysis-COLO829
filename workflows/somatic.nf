@@ -186,8 +186,17 @@ workflow SOMATIC {
         log.info "Pre-built bgzip+tabix truth VCF found alongside ${truth_set_vcf} -- skipping PREPARE_TRUTH_VCF"
         truth_vcf_ch = Channel.value([truth_vcf_gz_marker, truth_vcf_tbi_marker])
     } else {
+        // No .first() here (unlike INDEX_FASTA/CREATE_SEQUENCE_DICTIONARY above) -- found via
+        // execution 2026-08-30: PREPARE_TRUTH_VCF's only input (truth_set_vcf) is a plain value,
+        // not a channel, so Nextflow already treats its output as a value channel (a process
+        // whose every input is a singleton value runs once and emits a value channel by
+        // definition). Calling .first() on it is harmless but triggers a "useless" WARN --
+        // removed here since it's simple to avoid. The same latent (harmless) warning would
+        // apply to INDEX_FASTA/CREATE_SEQUENCE_DICTIONARY's .first() calls above if their
+        // build branches ever actually ran instead of hitting the pre-existing-file shortcut,
+        // but touching that already-signed-off Phase 2 code isn't in scope here.
         PREPARE_TRUTH_VCF(truth_set_vcf)
-        truth_vcf_ch = PREPARE_TRUTH_VCF.out.truth_vcf_indexed.first()
+        truth_vcf_ch = PREPARE_TRUTH_VCF.out.truth_vcf_indexed
     }
 
     HAPPY_BENCHMARK(
