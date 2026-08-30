@@ -44,11 +44,17 @@ workflow {
     reference_fasta = file(params.reference_fasta)
 
     SOMATIC(samples_ch, reference_fasta)
-}
 
-workflow.onComplete {
-    log.info "Pipeline completed at: ${workflow.complete}"
-    log.info "Execution status: ${workflow.success ? 'OK' : 'FAILED'}"
-    log.info "Duplicate-marked BAMs: ${params.outdir}/alignment/<sample_id>/<sample_id>.dedup.bam"
-    log.info "MultiQC report: ${params.outdir}/qc/multiqc/multiqc_report.html"
+    // Moved inside the workflow block 2026-08-30 -- same Nextflow 26.x parser break as the
+    // param-validation block above: a bare top-level statement (this is a method call on the
+    // `workflow` object, not a declaration) sitting after the closing `}` of the entry
+    // workflow is rejected ("Statements cannot be mixed with script declarations"). Setting
+    // the onComplete hook from inside the entry workflow works the same way -- it still
+    // registers before the run finishes, it just now lives somewhere the 26.x parser accepts.
+    workflow.onComplete {
+        log.info "Pipeline completed at: ${workflow.complete}"
+        log.info "Execution status: ${workflow.success ? 'OK' : 'FAILED'}"
+        log.info "Duplicate-marked BAMs: ${params.outdir}/alignment/<sample_id>/<sample_id>.dedup.bam"
+        log.info "MultiQC report: ${params.outdir}/qc/multiqc/multiqc_report.html"
+    }
 }
