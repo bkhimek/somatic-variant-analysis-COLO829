@@ -45,16 +45,16 @@ workflow {
 
     SOMATIC(samples_ch, reference_fasta)
 
-    // Moved inside the workflow block 2026-08-30 -- same Nextflow 26.x parser break as the
-    // param-validation block above: a bare top-level statement (this is a method call on the
-    // `workflow` object, not a declaration) sitting after the closing `}` of the entry
-    // workflow is rejected ("Statements cannot be mixed with script declarations"). Setting
-    // the onComplete hook from inside the entry workflow works the same way -- it still
-    // registers before the run finishes, it just now lives somewhere the 26.x parser accepts.
-    workflow.onComplete {
-        log.info "Pipeline completed at: ${workflow.complete}"
-        log.info "Execution status: ${workflow.success ? 'OK' : 'FAILED'}"
-        log.info "Duplicate-marked BAMs: ${params.outdir}/alignment/<sample_id>/<sample_id>.dedup.bam"
-        log.info "MultiQC report: ${params.outdir}/qc/multiqc/multiqc_report.html"
-    }
+    // A custom workflow.onComplete{} summary block used to live here (added, moved inside this
+    // block for Nextflow 26.x's parser, then wrapped in try/catch -- see git history / earlier
+    // revisions of docs/PHASE1_NOTES.md for the full saga). Removed entirely 2026-08-30: it kept
+    // throwing "ERROR ~ Failed to invoke `workflow.onComplete` event handler" even wrapped in
+    // try/catch, which means the failure happens in Nextflow's own mechanism for invoking a
+    // handler registered from inside the entry workflow's execution scope -- not in anything our
+    // closure's body did (a try/catch around simple log.info calls can't be the culprit; the
+    // wrapper wasn't even reaching our log.warn fallback). Since the run's actual outcome is
+    // already reported by Nextflow's own built-in completion summary (Completed at / Duration /
+    // Succeeded / Cached -- printed automatically, no config needed) and this block only ever
+    // added a few redundant path reminders, it wasn't worth chasing further. Output paths are
+    // documented in "How to run it" below instead, since they're static regardless of run.
 }
