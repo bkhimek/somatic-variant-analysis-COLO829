@@ -41,8 +41,11 @@ process CREATE_SEQUENCE_DICTIONARY {
     // GATK's default dict-naming (input basename, extension replaced with .dict) is fragile to
     // rely on implicitly -- name it explicitly via -O instead.
     def dict_name = reference_fasta.name.replaceAll(/\.(fa|fasta|fna)$/, '') + '.dict'
+    // --java-options "-Xmx6g" -- applied proactively, same reasoning as modules/mutect2.nf's
+    // MUTECT2 process: gatk's default JVM heap-sizing under Docker doesn't reliably scale to the
+    // container's actual memory, so every GATK invocation in this pipeline sets this explicitly.
     """
-    gatk CreateSequenceDictionary -R ${reference_fasta} -O ${dict_name}
+    gatk --java-options "-Xmx6g" CreateSequenceDictionary -R ${reference_fasta} -O ${dict_name}
     """
 }
 
@@ -61,7 +64,9 @@ process INDEX_VCF {
     tuple path(vcf), path("${vcf}.tbi"), emit: vcf_with_index
 
     script:
+    // --java-options "-Xmx6g" -- see CREATE_SEQUENCE_DICTIONARY above / modules/mutect2.nf for why
+    // this is applied to every GATK invocation in this pipeline.
     """
-    gatk IndexFeatureFile -I ${vcf} -O ${vcf}.tbi
+    gatk --java-options "-Xmx6g" IndexFeatureFile -I ${vcf} -O ${vcf}.tbi
     """
 }

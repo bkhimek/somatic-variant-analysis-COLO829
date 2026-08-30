@@ -32,8 +32,20 @@ process MUTECT2 {
     // -normal takes the SAMPLE NAME as recorded in the BAM's @RG SM tag, not a file path --
     // modules/alignment.nf's BWA_MEM2_ALIGN sets SM:${sample_id}, so normal_id (COLO829BL)
     // matches exactly what Mutect2 expects to find inside normal_bam's read group.
+    //
+    // --java-options "-Xmx6g" -- found via execution 2026-08-30: gatk's own default JVM
+    // heap-sizing under Docker does not reliably scale to the container's actual memory
+    // allocation. The crash log showed `Runtime.totalMemory()=2147483648` (exactly 2GiB
+    // self-allocated) inside this process's 8GB container, causing a genuine
+    // `java.lang.OutOfMemoryError: Java heap space` while Mutect2 was still just loading the
+    // reference sequence dictionary -- not doing any heavy calling work yet. 6g leaves ~2GB of
+    // headroom below the 8GB container allocation for off-heap/native memory, JVM overhead, and
+    // HTSJDK buffers. This is a systemic property of the gatk wrapper under Docker, not
+    // something specific to Mutect2's workload, so the same flag is applied to every GATK
+    // invocation in this pipeline (see LEARN_READ_ORIENTATION_MODEL and FILTER_MUTECT_CALLS
+    // below, plus modules/contamination.nf and modules/reference_prep.nf).
     """
-    gatk Mutect2 \\
+    gatk --java-options "-Xmx6g" Mutect2 \\
         -R ${reference_fasta} \\
         -I ${tumour_bam} \\
         -I ${normal_bam} \\
@@ -57,8 +69,10 @@ process LEARN_READ_ORIENTATION_MODEL {
     path("read-orientation-model.tar.gz"), emit: model
 
     script:
+    // --java-options "-Xmx6g" -- see MUTECT2's script block above for why this is applied to
+    // every GATK invocation in this pipeline, not just Mutect2 itself.
     """
-    gatk LearnReadOrientationModel -I ${f1r2_tar_gz} -O read-orientation-model.tar.gz
+    gatk --java-options "-Xmx6g" LearnReadOrientationModel -I ${f1r2_tar_gz} -O read-orientation-model.tar.gz
     """
 }
 
@@ -86,8 +100,11 @@ process FILTER_MUTECT_CALLS {
     // GATK finds unfiltered_vcf.stats automatically alongside -V by naming convention (the
     // `stats` input above just makes the dependency explicit to Nextflow so this process waits
     // for MUTECT2 to fully finish writing it, not because it's passed as its own CLI flag).
+    //
+    // --java-options "-Xmx6g" -- see MUTECT2's script block above for why this is applied to
+    // every GATK invocation in this pipeline, not just Mutect2 itself.
     """
-    gatk FilterMutectCalls \\
+    gatk --java-options "-Xmx6g" FilterMutectCalls \\
         -R ${reference_fasta} \\
         -V ${unfiltered_vcf} \\
         --contamination-table ${contamination_table} \\

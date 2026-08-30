@@ -36,8 +36,12 @@ process GET_PILEUP_SUMMARIES {
     def interval_args = interval_file.name != 'NO_FILE'
         ? "-L ${interval_file} -L ${common_biallelic_sites} --interval-set-rule INTERSECTION"
         : "-L ${common_biallelic_sites}"
+    // --java-options "-Xmx6g" -- found via execution 2026-08-30 (on MUTECT2, see modules/mutect2.nf
+    // for the full diagnosis): gatk's default JVM heap-sizing under Docker does not reliably scale
+    // to the container's actual memory allocation. Applied here proactively too, since this is a
+    // systemic property of the gatk wrapper, not something specific to one tool's workload.
     """
-    gatk GetPileupSummaries \\
+    gatk --java-options "-Xmx6g" GetPileupSummaries \\
         -I ${bam} \\
         -R ${reference_fasta} \\
         -V ${common_biallelic_sites} \\
@@ -63,8 +67,10 @@ process CALCULATE_CONTAMINATION {
     // conf/resources.config's explicit note that these defaults aren't final until inspected
     // against real COLO829 output. This just surfaces the number prominently in the log
     // rather than requiring you to go open contamination.table by hand.
+    // --java-options "-Xmx6g" -- see GET_PILEUP_SUMMARIES above / modules/mutect2.nf for why this
+    // is applied to every GATK invocation in this pipeline.
     """
-    gatk CalculateContamination \\
+    gatk --java-options "-Xmx6g" CalculateContamination \\
         -I ${tumour_pileups} \\
         -matched ${normal_pileups} \\
         -O contamination.table \\

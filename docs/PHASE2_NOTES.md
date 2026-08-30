@@ -1,7 +1,7 @@
 # Phase 2 — Contamination Estimation and Mutect2 Somatic Calling (Modules 3–4): implementation notes
 
 **Date:** 2026-08-30
-**Status:** Ran successfully on the `dev` profile (driver-gene-restricted) first try; the `full`-profile (unrestricted) rerun surfaced one real bug, since fixed — see "First real run — findings" below. Originally built and reviewed in this session, following the same GATK Best Practices tumour-normal design the repo's existing scaffolding already signposted (`panel_of_normals`, `germline_resource`, `common_biallelic_sites` params, and the `qc.contamination` warn/fail thresholds in `conf/resources.config`, were all already declared in Phase 0/1, unused until now). Reviewed carefully for the DSL2 gotchas this project has already been burned by twice (Phase 1's channel-cardinality bugs, the Nextflow 26.x directive-closure issue) — but as expected, review alone didn't catch everything; execution found one real GATK-behaviour bug the `dev`-profile run's success had masked.
+**Status:** Ran successfully on the `dev` profile (driver-gene-restricted) first try; the `full`-profile (unrestricted) rerun has so far surfaced two real bugs, both fixed — see "First real run — findings" and "Second `full`-profile attempt — Mutect2 JVM heap OOM" below. Originally built and reviewed in this session, following the same GATK Best Practices tumour-normal design the repo's existing scaffolding already signposted (`panel_of_normals`, `germline_resource`, `common_biallelic_sites` params, and the `qc.contamination` warn/fail thresholds in `conf/resources.config`, were all already declared in Phase 0/1, unused until now). Reviewed carefully for the DSL2 gotchas this project has already been burned by twice (Phase 1's channel-cardinality bugs, the Nextflow 26.x directive-closure issue) — but as expected, review alone didn't catch everything; each `full`-profile rerun so far has found one more real bug the `dev`-profile run's tiny restricted scope had masked.
 
 ---
 
@@ -12,6 +12,28 @@
 **Real bug found via the `full`-profile (unrestricted) rerun: `GetPileupSummaries` requires `-L`/`--intervals` — it is not optional.** The original design treated the interval restriction as optional for `GET_PILEUP_SUMMARIES` (same NO_FILE-sentinel pattern that correctly makes `-L` optional for `MUTECT2`), reasoning that omitting it entirely would mean "scan everywhere" on the `full` profile. That's valid for Mutect2, but GATK 4.5.0.0's `GetPileupSummaries` hard-fails without it: `A USER ERROR has occurred: Argument intervals was missing: Argument 'intervals' is required`. The `dev`-profile run never hit this because it always passed the driver-gene BED as `-L`, satisfying the requirement — the bug was only reachable through the `full`-profile path, which is exactly why trying the unrestricted rerun (rather than stopping at the dev-profile "ran clean" result) was worth doing.
 
 **Fix:** standard GATK Best Practices pattern — always pass the common-biallelic-sites VCF itself as the baseline `-L` (those are the only positions `GetPileupSummaries` ever needs to check pileups at regardless of any further restriction), and additionally intersect with a real `interval_list` when one is set (`-L <bed> -L <common_sites_vcf> --interval-set-rule INTERSECTION`) rather than replacing the sites restriction outright. This satisfies GATK's requirement unconditionally and is the intended, efficient way to run this tool (traversing the whole genome checking every possible position against a sites VCF would be wasteful even if it were technically allowed).
+
+---
+
+## Second `full`-profile attempt — Mutect2 JVM heap OOM (2026-08-30)
+
+With the `GetPileupSummaries` fix landed, the unrestricted `full`-profile rerun got further: `GET_PILEUP_SUMMARIES` completed successfully for both samples (2 of 2). `MUTECT2` then failed after 5.82 minutes with exit code 137:
+
+```
+[...] Mutect2 done. Elapsed time: 5.82 minutes.
+Runtime.totalMemory()=2147483648
+java.lang.OutOfMemoryError: Java heap space
+      at htsjdk.samtools.SAMTextHeaderCodec$ParsedHeaderLine.<init>(...)
+      ...
+```
+
+**Diagnosis:** `Runtime.totalMemory()=2147483648` is exactly 2GiB — the JVM had only self-allocated a 2GB heap despite `MUTECT2` running in this profile's flat 8GB-per-process container allocation (no per-process `memory` override existed for any Module 3–4 process). This is a well-known, well-documented property of running `gatk` under Docker: the wrapper script's own default heap-sizing logic doesn't reliably detect/scale to the actual container memory limit, so it falls back to a JVM default (often a fraction of *host* memory as seen by `free`, or a hardcoded default) that has no relationship to what the container was actually given. The crash itself is direct evidence of this — not a repeat of the earlier "~19GB to use a bwa-mem2 index" mistake, which was an unverified number pulled from an unreliable memory rather than something a crash log confirmed.
+
+**Fix:** pass an explicit heap size via `gatk --java-options "-Xmx6g" <tool>` — this is GATK's own documented mechanism for exactly this problem. `6g` leaves ~2GB of headroom below the 8GB container allocation for off-heap/native memory, JVM overhead (metaspace, thread stacks, JIT code cache), and HTSJDK's own native buffers, which is standard practice for GATK-in-Docker sizing (heap ≈ 75% of container memory, not 100%).
+
+Since this is a systemic property of the `gatk` wrapper under Docker — not something specific to Mutect2's workload — the same `--java-options "-Xmx6g"` flag was applied proactively to **every** GATK invocation in the pipeline, not just `MUTECT2`: `LEARN_READ_ORIENTATION_MODEL` and `FILTER_MUTECT_CALLS` (`modules/mutect2.nf`), `GET_PILEUP_SUMMARIES` and `CALCULATE_CONTAMINATION` (`modules/contamination.nf`), and `CREATE_SEQUENCE_DICTIONARY` and `INDEX_VCF` (`modules/reference_prep.nf`). `GET_PILEUP_SUMMARIES` had already completed successfully without it on this run (its workload is lighter and apparently fit inside whatever heap the JVM defaulted to), and the small resource-VCF indexing/dict-creation steps are unlikely to ever need 6GB — but leaving them unfixed would just mean the same failure loop resurfacing on a different process on some future, larger run, for no benefit (a fixed 6GB heap request costs nothing when the actual workload needs less).
+
+**Not yet re-verified:** this fix has not yet been rerun. `CALCULATE_CONTAMINATION` was still "0 of 1" when this run aborted, so its outcome on the unrestricted `full`-profile data remains unknown until the rerun completes.
 
 ---
 
@@ -61,7 +83,7 @@ Since Phase 2 extends the same `SOMATIC` workflow rather than making Modules 3�
 ## Things you need to check/fix before this actually runs
 
 1. **This has never been executed.** Expect at least one round of real bugs, same as every phase so far — DSL2 channel-cardinality mistakes are exactly the kind of thing that only shows up at runtime (Phase 1 had several).
-2. **Mutect2/GATK memory isn't tuned yet.** All Module 3–4 processes currently inherit the profile default (8GB). Real WGS Mutect2 runs can need considerably more, but so did the "~19GB to use a bwa-mem2 index" claim that turned out badly wrong in Phase 1 — rather than repeat that mistake and guess a number, this is being left at the default and will be tuned from an actual OOM if/when one happens, with real evidence this time.
+2. **GATK JVM heap is now explicitly sized (`-Xmx6g` on every GATK invocation), container memory is not.** All Module 3–4 processes still inherit the profile's flat 8GB container allocation — see "Second `full`-profile attempt" above for why the *heap* needed an explicit size regardless of container memory (a Docker-specific gatk-wrapper quirk, confirmed by a real crash, not a guess). If a future run OOMs at the container level (not the JVM-heap level) on real full-depth WGS data, that's a separate, legitimate reason to raise the container `memory` directive too — raise `-Xmx` alongside it if so, keeping ~25% headroom.
 3. **Download the three GATK resource VCFs** (`docs/data_sources.md` §4) if you haven't already — `panel_of_normals` (`1000g_pon.hg38.vcf.gz`), `germline_resource` (`af-only-gnomad.hg38.vcf.gz`), `common_biallelic_sites` (`small_exac_common_3.hg38.vcf.gz`). `.tbi` companion index files are commonly published alongside GATK bundle VCFs at the same path + `.tbi`, but this hasn't been independently confirmed for this specific bucket — it doesn't matter either way, since `INDEX_VCF` builds them if missing regardless (see above).
 4. **The contamination warn/fail thresholds (2%/5%) are explicitly provisional** — `conf/resources.config` says so directly, pending inspection of the real COLO829 contamination table. `CALCULATE_CONTAMINATION` logs a WARN/FAIL/OK line against these thresholds but doesn't fail the pipeline on it — revisit the actual numbers once you have real output.
 5. **`gnomAD` version embedded in `af-only-gnomad.hg38.vcf.gz` is still unconfirmed** (`docs/data_sources.md` §4/§9, an open TODO since Phase 0) — check the VCF header once downloaded and record it, needed for `run_manifest.json`'s `gnomad_version` field eventually.
