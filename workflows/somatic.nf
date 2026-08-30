@@ -33,7 +33,11 @@ workflow SOMATIC {
     // Pre-built-index auto-detection (added 2026-08-30, after the full-genome bwa-mem2 index
     // was built on a one-off high-RAM AWS instance -- see docs/data_sources.md §2 and
     // docs/PHASE1_NOTES.md for why: bwa-mem2 index needs ~87-110GB RAM to build, which no
-    // desktop/laptop in this project has, but only ~19GB to USE once built). If the five
+    // desktop/laptop in this project has. Using a pre-built index for alignment needs less than
+    // building it, but NOT the ~19GB this comment originally claimed -- that figure was an
+    // unverified guess and turned out wrong; see docs/PHASE1_NOTES.md's 2026-08-30 update for
+    // real-world numbers (commonly 30GB+, per bwa-mem2's own GitHub issues) and the actual
+    // memory/cpus settings this required in nextflow.config). If the five
     // bwa-mem2 index files already sit alongside reference_fasta (same convention bwa-mem2
     // itself uses -- sibling files named "<fasta>.0123", "<fasta>.amb", etc.), skip rebuilding
     // entirely and feed BWA_MEM2_ALIGN the existing files. Otherwise (e.g. the chr21 dev-profile
