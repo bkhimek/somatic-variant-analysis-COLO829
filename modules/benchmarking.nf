@@ -20,9 +20,16 @@
 //     bed + SV bedpe exist per cell line, confirmed in Phase 0), so som.py runs unrestricted.
 //   - `-N` (normalize both VCFs before comparing) -- som.py's own documented recommendation for
 //     a first run.
-//   - `--happy-stats` -- adds a friendlier som.summary.csv table alongside som.py's raw
-//     som.stats.csv, giving the same kind of headline precision/recall view hap.py's
-//     summary.csv would have provided.
+//   - No `--happy-stats`. Found via execution 2026-08-30 (see docs/PHASE3_NOTES.md): som.py
+//     refuses `--happy-stats` unless it's paired with either `-P` (count non-PASS/filtered
+//     variants too) plus `--feature-table <name>`, or `--roc <type>` -- "Obtaining hap.py stats
+//     only works when a feature table is selected, and when using unfiltered variants." Adding
+//     those would mean picking a feature-table caller profile or ROC type match to Mutect2's
+//     actual VCF fields, which is exactly the kind of "chase real precision now" work this first
+//     cut is deliberately not doing yet (see "Scope decision" in docs/PHASE3_NOTES.md). Dropped
+//     `--happy-stats` entirely instead -- som.py's plain `-N` run still unconditionally writes
+//     som.stats.csv + som.metrics.json, which is enough to prove the DAG/container/command line
+//     are wired correctly.
 
 process PREPARE_TRUTH_VCF {
     // Found via execution 2026-08-30: quay.io/biocontainers/htslib:1.21--h566b1c6_0 doesn't
@@ -73,21 +80,20 @@ process SOMPY_BENCHMARK {
 
     output:
     path("som.stats.csv"), emit: stats
-    path("som.summary.csv"), emit: summary
     path("som.metrics.json"), emit: metrics
     path("som.*"), emit: all_outputs
 
     script:
     // `-o som` sets the output filename prefix. Confirmed via som.py's own source (not guessed):
-    // bare `-N` unconditionally writes som.stats.csv + som.metrics.json; `--happy-stats` adds the
-    // friendlier som.summary.csv table read like hap.py's own summary.csv would have been.
+    // bare `-N` unconditionally writes som.stats.csv + som.metrics.json. `--happy-stats` was
+    // tried and dropped -- see module header comment: it requires `-P` + `--feature-table` or
+    // `--roc`, which this first cut deliberately isn't picking yet.
     """
     som.py \\
         ${truth_vcf} \\
         ${query_vcf} \\
         -r ${reference_fasta} \\
         -o som \\
-        -N \\
-        --happy-stats
+        -N
     """
 }

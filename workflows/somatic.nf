@@ -212,5 +212,5 @@ workflow SOMATIC {
     multiqc_report    = MULTIQC.out.report
     contamination_table = CALCULATE_CONTAMINATION.out.contamination_table
     filtered_vcf      = FILTER_MUTECT_CALLS.out.vcf    // Phase 3's benchmarking-against-truth-set target
-    sompy_summary     = SOMPY_BENCHMARK.out.summary    // headline precision/recall/F1 table
+    sompy_stats       = SOMPY_BENCHMARK.out.stats      // TP/FP/FN counts by variant type (som.stats.csv -- no --happy-stats summary table, see modules/benchmarking.nf)
 }
