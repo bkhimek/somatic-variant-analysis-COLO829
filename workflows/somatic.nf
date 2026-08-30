@@ -2,16 +2,21 @@
 // estimation (Module 3) + Mutect2 somatic calling (Module 4). Tumour and normal are processed
 // independently through Modules 1-2 and Module 3's pileup step (per plan §6 Module 2 note --
 // "Same module runs twice"), then rejoined for CalculateContamination and Mutect2 itself, which
-// genuinely need both samples together.
+// genuinely need both samples together. Phase 3 (added 2026-08-30): Benchmarking (Module 5) --
+// compares FILTER_MUTECT_CALLS' output against the NYGC COLO829 truth set via hap.py. See
+// docs/PHASE3_NOTES.md for what this run can and can't validate yet (short version: the only
+// Mutect2 output that exists so far has zero variants, so this proves the DAG/container/hap.py
+// command line work, not real precision/recall numbers).
 //
-// Phase 3+ (benchmarking, CNVkit, ...) will extend this same workflow file rather than starting
-// a new one, so the DAG stays in one place end to end.
+// Phase 4+ (CNVkit, SigProfiler, interpretation, ...) will extend this same workflow file rather
+// than starting a new one, so the DAG stays in one place end to end.
 
 include { FASTQC; MULTIQC }                                             from '../modules/fastqc.nf'
 include { BWA_MEM2_INDEX; BWA_MEM2_ALIGN; SAMTOOLS_SORT; MARK_DUPLICATES } from '../modules/alignment.nf'
 include { INDEX_FASTA; CREATE_SEQUENCE_DICTIONARY; INDEX_VCF }           from '../modules/reference_prep.nf'
 include { GET_PILEUP_SUMMARIES; CALCULATE_CONTAMINATION }                from '../modules/contamination.nf'
 include { MUTECT2; LEARN_READ_ORIENTATION_MODEL; FILTER_MUTECT_CALLS }   from '../modules/mutect2.nf'
+include { PREPARE_TRUTH_VCF; HAPPY_BENCHMARK }                          from '../modules/benchmarking.nf'
 
 workflow SOMATIC {
 
@@ -21,6 +26,7 @@ workflow SOMATIC {
     panel_of_normals         // path: Mutect2 --panel-of-normals VCF (gz)
     germline_resource        // path: Mutect2 --germline-resource VCF (gz)
     common_biallelic_sites   // path: GetPileupSummaries -V VCF (gz)
+    truth_set_vcf            // path: NYGC COLO829 truth-set VCF (plain, uncompressed)
 
     main:
     // ---- Module 1: QC ----
@@ -170,10 +176,31 @@ workflow SOMATIC {
         LEARN_READ_ORIENTATION_MODEL.out.model
     )
 
+    // ---- Module 5: Benchmarking (Phase 3, added 2026-08-30) ----
+    // Auto-detect-or-build for the truth VCF's bgzip+tabix companion, same pattern as .fai/.dict
+    // above -- skip PREPARE_TRUTH_VCF if you've already bgzipped/indexed it yourself alongside
+    // the plain VCF NYGC ships.
+    def truth_vcf_gz_marker  = file("${truth_set_vcf}.gz")
+    def truth_vcf_tbi_marker = file("${truth_set_vcf}.gz.tbi")
+    if (truth_vcf_gz_marker.exists() && truth_vcf_tbi_marker.exists()) {
+        log.info "Pre-built bgzip+tabix truth VCF found alongside ${truth_set_vcf} -- skipping PREPARE_TRUTH_VCF"
+        truth_vcf_ch = Channel.value([truth_vcf_gz_marker, truth_vcf_tbi_marker])
+    } else {
+        PREPARE_TRUTH_VCF(truth_set_vcf)
+        truth_vcf_ch = PREPARE_TRUTH_VCF.out.truth_vcf_indexed.first()
+    }
+
+    HAPPY_BENCHMARK(
+        truth_vcf_ch,
+        FILTER_MUTECT_CALLS.out.vcf, FILTER_MUTECT_CALLS.out.vcf_index,
+        reference_fasta, fai_ch
+    )
+
     emit:
-    dedup_bams        = MARK_DUPLICATES.out.bam       // tuple(sample_id, bam, bai) -- Phase 3 (benchmarking, CNVkit) can also consume this
+    dedup_bams        = MARK_DUPLICATES.out.bam       // tuple(sample_id, bam, bai) -- Phase 4 (CNVkit) can also consume this
     dedup_metrics     = MARK_DUPLICATES.out.metrics
     multiqc_report    = MULTIQC.out.report
     contamination_table = CALCULATE_CONTAMINATION.out.contamination_table
     filtered_vcf      = FILTER_MUTECT_CALLS.out.vcf    // Phase 3's benchmarking-against-truth-set target
+    happy_summary     = HAPPY_BENCHMARK.out.summary    // headline precision/recall/F1 table
 }

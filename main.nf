@@ -1,9 +1,10 @@
 #!/usr/bin/env nextflow
 /*
  * COLO829 Tumour-Normal Somatic Genomics Pipeline
- * Entry point — Phase 1 wired up Modules 1-2 (QC, Alignment); Phase 2 (2026-08-30) extends the
- * same SOMATIC workflow with Modules 3-4 (contamination estimation, Mutect2 somatic calling).
- * Phase 3+ will keep extending this same workflow rather than adding new entry points.
+ * Entry point — Phase 1 wired up Modules 1-2 (QC, Alignment); Phase 2 (2026-08-30) extended the
+ * same SOMATIC workflow with Modules 3-4 (contamination estimation, Mutect2 somatic calling);
+ * Phase 3 (2026-08-30) adds Module 5 (benchmarking against the NYGC COLO829 truth set via
+ * hap.py). Phase 4+ will keep extending this same workflow rather than adding new entry points.
  *
  * Run:
  *   conda activate nextflow
@@ -16,6 +17,10 @@
  * --common_biallelic_sites (docs/data_sources.md §4) -- a Phase-1-only run without them will
  * now fail fast with a clear message rather than silently skipping Modules 3-4, since the plan
  * extends one workflow rather than making these modules optional. See docs/PHASE2_NOTES.md.
+ *
+ * As of Phase 3, every run also needs --truth_set_vcf (docs/data_sources.md §3 for provenance;
+ * the plain uncompressed VCF path is fine, PREPARE_TRUTH_VCF bgzips/indexes it if needed). See
+ * docs/PHASE3_NOTES.md for what a run against the current Mutect2 output can and can't validate.
  */
 
 nextflow.enable.dsl = 2
@@ -35,7 +40,10 @@ workflow {
         'reference_fasta',
         // Added Phase 2 (2026-08-30) for Modules 3-4 -- see docs/data_sources.md §4 for
         // provenance/download commands for all three.
-        'panel_of_normals', 'germline_resource', 'common_biallelic_sites'
+        'panel_of_normals', 'germline_resource', 'common_biallelic_sites',
+        // Added Phase 3 (2026-08-30) for Module 5 -- see docs/data_sources.md §3 for provenance
+        // (NYGC's open COLO829 somatic VCF, decided in Phase 0).
+        'truth_set_vcf'
     ]
     def missing = required.findAll { params[it] == null }
     if (missing) {
@@ -54,8 +62,9 @@ workflow {
     panel_of_normals = file(params.panel_of_normals)
     germline_resource = file(params.germline_resource)
     common_biallelic_sites = file(params.common_biallelic_sites)
+    truth_set_vcf = file(params.truth_set_vcf)
 
-    SOMATIC(samples_ch, reference_fasta, panel_of_normals, germline_resource, common_biallelic_sites)
+    SOMATIC(samples_ch, reference_fasta, panel_of_normals, germline_resource, common_biallelic_sites, truth_set_vcf)
 
     // A custom workflow.onComplete{} summary block used to live here (added, moved inside this
     // block for Nextflow 26.x's parser, then wrapped in try/catch -- see git history / earlier

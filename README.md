@@ -1,6 +1,6 @@
 # COLO829 Tumour-Normal Somatic Genomics Pipeline
 
-**Status:** Phase 1 (QC + alignment) and Phase 2 (contamination + Mutect2 somatic calling) both signed off — see `docs/PHASE1_NOTES.md` and `docs/PHASE2_NOTES.md` for what each phase actually proved (and explicitly didn't), `docs/PHASE0_FINDINGS.md` for the Phase 0 research trail, and `docs/data_sources.md` for the living data-source/version ledger.
+**Status:** Phase 1 (QC + alignment) and Phase 2 (contamination + Mutect2 somatic calling) both signed off; Phase 3 (benchmarking against the NYGC truth set) built and wired in, not yet run — see `docs/PHASE1_NOTES.md`, `docs/PHASE2_NOTES.md`, and `docs/PHASE3_NOTES.md` for what each phase actually proved (and explicitly didn't), `docs/PHASE0_FINDINGS.md` for the Phase 0 research trail, and `docs/data_sources.md` for the living data-source/version ledger.
 
 Tumour-normal somatic variant calling (GATK Mutect2) benchmarked against a COLO829/COLO829BL truth set, with copy-number (CNVkit), mutational signature (SigProfilerMatrixGenerator + SigProfilerAssignment), and oncogenicity/actionability interpretation layers. Full design rationale: see the project plan (kept alongside this repo, not committed here — v1.1 as of 2026-08-27).
 
@@ -19,13 +19,17 @@ Modules 1–2 (QC, Alignment) ran successfully end-to-end against the real full 
 
 ## Phase 2 status (2026-08-30) — SIGNED OFF
 
-Modules 3–4 (Contamination estimation, Mutect2 somatic calling) ran successfully end-to-end on the `dev` profile (driver-gene-BED-restricted), confirming `GetPileupSummaries` → `CalculateContamination` → `Mutect2` → `LearnReadOrientationModel` → `FilterMutectCalls` are all wired correctly against the real reference and real GATK resource bundles. Getting there took two real bugs found only by execution (`GetPileupSummaries`'s mandatory `-L`, a GATK/JVM-in-Docker heap-sizing issue) plus one real finding that isn't a bug: research into GATK's own guidance, Broad's production WDL, and nf-core/sarek confirmed unsharded genome-wide Mutect2 execution is not how this tool is meant to run anywhere, at any memory size available on this machine. Real interval-scatter/gather architecture (and likely another one-off cloud compute burst) are explicitly deferred to Phase 3, when real full-depth benchmarking data makes them actually necessary — full story in `docs/PHASE2_NOTES.md`.
+Modules 3–4 (Contamination estimation, Mutect2 somatic calling) ran successfully end-to-end on the `dev` profile (driver-gene-BED-restricted), confirming `GetPileupSummaries` → `CalculateContamination` → `Mutect2` → `LearnReadOrientationModel` → `FilterMutectCalls` are all wired correctly against the real reference and real GATK resource bundles. Getting there took two real bugs found only by execution (`GetPileupSummaries`'s mandatory `-L`, a GATK/JVM-in-Docker heap-sizing issue) plus one real finding that isn't a bug: research into GATK's own guidance, Broad's production WDL, and nf-core/sarek confirmed unsharded genome-wide Mutect2 execution is not how this tool is meant to run anywhere, at any memory size available on this machine. Real interval-scatter/gather architecture (and likely another one-off cloud compute burst) are explicitly deferred to when real full-depth data makes them actually necessary — full story in `docs/PHASE2_NOTES.md`.
+
+## Phase 3 status (2026-08-30) — built, not yet run
+
+Module 5 (benchmarking, via hap.py against the NYGC COLO829 truth set) is implemented in `modules/benchmarking.nf`, extending the same `workflows/somatic.nf`. Since the only Mutect2 output that exists so far has zero variant calls (Phase 2's `dev`-profile result), this first run is only expected to prove the DAG/container/hap.py command line are wired correctly — not produce meaningful precision/recall numbers, which stay deferred until real full-genome Mutect2 execution happens. **Read `docs/PHASE3_NOTES.md` before your first Phase 3 run** — it covers the new required param, the design choices behind the hap.py invocation, and a real (if low-risk) contig-naming check worth doing if it errors out.
 
 ## Repo layout
 
 ```
 COLO829-somatic-pipeline/
-├── main.nf                   Entry point (Phase 1 + Phase 2)
+├── main.nf                   Entry point (Phase 1 + Phase 2 + Phase 3)
 ├── nextflow.config            dev/full profiles + docker/singularity profiles
 ├── assets/NO_FILE             optional-input sentinel (Phase 2)
 ├── modules/
@@ -33,19 +37,21 @@ COLO829-somatic-pipeline/
 │   ├── alignment.nf           Module 2: BWA-MEM2 -> sort -> MarkDuplicates
 │   ├── reference_prep.nf      Phase 2: .fai/.dict/VCF-index auto-prep
 │   ├── contamination.nf       Module 3: GetPileupSummaries + CalculateContamination
-│   └── mutect2.nf             Module 4: Mutect2 + LearnReadOrientationModel + FilterMutectCalls
-├── workflows/somatic.nf        wires Modules 1-4 together
+│   ├── mutect2.nf             Module 4: Mutect2 + LearnReadOrientationModel + FilterMutectCalls
+│   └── benchmarking.nf        Module 5: PrepareTruthVcf + hap.py benchmarking
+├── workflows/somatic.nf        wires Modules 1-5 together
 ├── bin/                       (Phase 5+)
 ├── conf/resources.config      QC + contamination thresholds (includeConfig'd from Phase 2)
 ├── data/gene_lists/           melanoma driver gene seed list + dev_intervals.bed (real GRCh38 coords)
 ├── docs/
 │   ├── PHASE0_FINDINGS.md     Phase 0 research report
 │   ├── PHASE1_NOTES.md        Phase 1 implementation notes (signed off)
-│   ├── PHASE2_NOTES.md        Phase 2 implementation notes -- read before running
+│   ├── PHASE2_NOTES.md        Phase 2 implementation notes (signed off)
+│   ├── PHASE3_NOTES.md        Phase 3 implementation notes -- read before running
 │   ├── data_sources.md        living data-source/version/licensing ledger
 │   ├── run_manifest.schema.json + run_manifest.example.json
 │   ├── somatic_interpretation.md   (Phase 5+)
-│   └── benchmarking_results.md     (Phase 3+)
+│   └── benchmarking_results.md     (written once real full-genome results exist)
 └── .gitignore
 ```
 
