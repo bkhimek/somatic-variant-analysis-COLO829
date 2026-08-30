@@ -3,10 +3,11 @@
 // independently through Modules 1-2 and Module 3's pileup step (per plan §6 Module 2 note --
 // "Same module runs twice"), then rejoined for CalculateContamination and Mutect2 itself, which
 // genuinely need both samples together. Phase 3 (added 2026-08-30): Benchmarking (Module 5) --
-// compares FILTER_MUTECT_CALLS' output against the NYGC COLO829 truth set via hap.py. See
-// docs/PHASE3_NOTES.md for what this run can and can't validate yet (short version: the only
-// Mutect2 output that exists so far has zero variants, so this proves the DAG/container/hap.py
-// command line work, not real precision/recall numbers).
+// compares FILTER_MUTECT_CALLS' output against the NYGC COLO829 truth set via som.py (NOT
+// hap.py -- see modules/benchmarking.nf's header comment for why a GT-less somatic VCF needs
+// som.py specifically). See docs/PHASE3_NOTES.md for what this run can and can't validate yet
+// (short version: the only Mutect2 output that exists so far has zero variants, so this proves
+// the DAG/container/som.py command line work, not real precision/recall numbers).
 //
 // Phase 4+ (CNVkit, SigProfiler, interpretation, ...) will extend this same workflow file rather
 // than starting a new one, so the DAG stays in one place end to end.
@@ -16,7 +17,7 @@ include { BWA_MEM2_INDEX; BWA_MEM2_ALIGN; SAMTOOLS_SORT; MARK_DUPLICATES } from 
 include { INDEX_FASTA; CREATE_SEQUENCE_DICTIONARY; INDEX_VCF }           from '../modules/reference_prep.nf'
 include { GET_PILEUP_SUMMARIES; CALCULATE_CONTAMINATION }                from '../modules/contamination.nf'
 include { MUTECT2; LEARN_READ_ORIENTATION_MODEL; FILTER_MUTECT_CALLS }   from '../modules/mutect2.nf'
-include { PREPARE_TRUTH_VCF; HAPPY_BENCHMARK }                          from '../modules/benchmarking.nf'
+include { PREPARE_TRUTH_VCF; SOMPY_BENCHMARK }                          from '../modules/benchmarking.nf'
 
 workflow SOMATIC {
 
@@ -199,7 +200,7 @@ workflow SOMATIC {
         truth_vcf_ch = PREPARE_TRUTH_VCF.out.truth_vcf_indexed
     }
 
-    HAPPY_BENCHMARK(
+    SOMPY_BENCHMARK(
         truth_vcf_ch,
         FILTER_MUTECT_CALLS.out.vcf, FILTER_MUTECT_CALLS.out.vcf_index,
         reference_fasta, fai_ch
@@ -211,5 +212,5 @@ workflow SOMATIC {
     multiqc_report    = MULTIQC.out.report
     contamination_table = CALCULATE_CONTAMINATION.out.contamination_table
     filtered_vcf      = FILTER_MUTECT_CALLS.out.vcf    // Phase 3's benchmarking-against-truth-set target
-    happy_summary     = HAPPY_BENCHMARK.out.summary    // headline precision/recall/F1 table
+    sompy_summary     = SOMPY_BENCHMARK.out.summary    // headline precision/recall/F1 table
 }

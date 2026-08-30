@@ -4,7 +4,9 @@
  * Entry point — Phase 1 wired up Modules 1-2 (QC, Alignment); Phase 2 (2026-08-30) extended the
  * same SOMATIC workflow with Modules 3-4 (contamination estimation, Mutect2 somatic calling);
  * Phase 3 (2026-08-30) adds Module 5 (benchmarking against the NYGC COLO829 truth set via
- * hap.py). Phase 4+ will keep extending this same workflow rather than adding new entry points.
+ * som.py -- not hap.py, see modules/benchmarking.nf for why a GT-less somatic VCF needs som.py
+ * specifically). Phase 4+ will keep extending this same workflow rather than adding new entry
+ * points.
  *
  * Run:
  *   conda activate nextflow

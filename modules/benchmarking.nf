@@ -1,20 +1,28 @@
 // Module 5 -- Benchmarking (Phase 3, added 2026-08-30). Compares FILTER_MUTECT_CALLS' output
 // against the NYGC COLO-829/COLO-829BL open somatic VCF (decided as the primary SNV/indel truth
-// set in Phase 0 -- docs/PHASE0_FINDINGS.md, docs/data_sources.md) using hap.py, the standard
-// GA4GH-recommended tool for benchmarking a variant caller's precision/recall against a truth
-// set.
+// set in Phase 0 -- docs/PHASE0_FINDINGS.md, docs/data_sources.md).
+//
+// Uses som.py, NOT hap.py, despite both shipping in the same package/container -- found via
+// execution 2026-08-30 (see docs/PHASE3_NOTES.md): hap.py is GA4GH's tool for GERMLINE
+// small-variant benchmarking and keys off the VCF's GT (genotype) field to decide whether a
+// record is "non-reference." NYGC's somatic truth VCF (and Mutect2's own output) carry AD/DP/AF
+// per-sample annotation but no GT field at all -- with hap.py, every record silently reads as
+// homozygous-reference, producing "Non-reference VCF records: 0" despite 43,192 real truth
+// records, and hap.py then hard-fails with "Input files/regions do not contain variants." The
+// same Illumina/hap.py package ships `som.py` specifically for this: somatic comparison based on
+// ALT-allele presence (via bcftools isec under the hood), no GT/haplotype matching required --
+// exactly what a Mutect2-vs-somatic-truth-set comparison needs. No new container was needed;
+// som.py is already present in the same hap.py image alongside hap.py itself.
 //
 // Known, deliberate scope limits for this first cut (see docs/PHASE3_NOTES.md for the full
 // reasoning):
 //   - No confidence-region BED restriction -- NYGC doesn't publish one for SNV/indel (only CNV
-//     bed + SV bedpe exist per cell line, confirmed in Phase 0), so hap.py runs unrestricted.
-//   - Default hap.py comparison engine (xcmp), not vcfeval -- avoids pulling in RTG Tools/an SDF
-//     reference just for this first pass; xcmp is hap.py's own default and needs nothing beyond
-//     what's already in the container.
-//   - No --pass-only override -- hap.py's own default already only counts PASS variants in both
-//     truth and query, which matches what we want (FILTER_MUTECT_CALLS' filtered.vcf.gz marks
-//     non-PASS calls with real filter reasons; those should be excluded from being counted as
-//     positive calls, not force-included).
+//     bed + SV bedpe exist per cell line, confirmed in Phase 0), so som.py runs unrestricted.
+//   - `-N` (normalize both VCFs before comparing) -- som.py's own documented recommendation for
+//     a first run.
+//   - `--happy-stats` -- adds a friendlier som.summary.csv table alongside som.py's raw
+//     som.stats.csv, giving the same kind of headline precision/recall view hap.py's
+//     summary.csv would have provided.
 
 process PREPARE_TRUTH_VCF {
     // Found via execution 2026-08-30: quay.io/biocontainers/htslib:1.21--h566b1c6_0 doesn't
@@ -37,7 +45,7 @@ process PREPARE_TRUTH_VCF {
 
     script:
     // NYGC ships the truth set as a plain (non-bgzip) uncompressed VCF (confirmed in Phase 0,
-    // docs/data_sources.md sec 3) -- hap.py wants bgzip+tabix like every other VCF input in this
+    // docs/data_sources.md sec 3) -- som.py wants bgzip+tabix like every other VCF input in this
     // pipeline, so this mirrors modules/reference_prep.nf's INDEX_VCF pattern rather than
     // reinventing it, just with an added bgzip step since this file isn't gzipped at all yet
     // (the resource VCFs INDEX_VCF handles are already bgzipped, just missing their .tbi).
@@ -47,12 +55,12 @@ process PREPARE_TRUTH_VCF {
     """
 }
 
-process HAPPY_BENCHMARK {
-    // Found via execution 2026-08-30: quay.io/biocontainers/hap.py:0.3.15-0 doesn't exist
-    // ("manifest unknown") -- same root cause as PREPARE_TRUTH_VCF's earlier htslib miss above:
-    // biocontainers tags are always "<version>--<conda-build-string>" (double dash), not
-    // "<version>-<N>". Verified this exact tag with a real `docker pull` before shipping it
-    // (rather than guessing a plausible-looking build string again) -- confirmed working.
+process SOMPY_BENCHMARK {
+    // Container tag found wrong via execution 2026-08-30 (quay.io/biocontainers/hap.py:0.3.15-0
+    // doesn't exist -- biocontainers tags are always "<version>--<conda-build-string>", double
+    // dash, not "<version>-<N>") then fixed and confirmed with a real `docker pull`. Reused here
+    // for som.py since it ships in the same package/image as hap.py -- see module header comment
+    // for why som.py, not hap.py, is the right tool for a somatic (GT-less) VCF comparison.
     container 'quay.io/biocontainers/hap.py:0.3.14--py27h5c5a3ab_0'
     publishDir "${params.outdir}/benchmarking", mode: 'copy'
 
@@ -64,21 +72,22 @@ process HAPPY_BENCHMARK {
     path(reference_fai)
 
     output:
-    path("happy.summary.csv"), emit: summary
-    path("happy.extended.csv"), emit: extended
-    path("happy.*"), emit: all_outputs
+    path("som.stats.csv"), emit: stats
+    path("som.summary.csv"), emit: summary
+    path("som.metrics.json"), emit: metrics
+    path("som.*"), emit: all_outputs
 
     script:
-    // hap.py's own defaults do the right thing here (see module header comment): PASS-only
-    // counting on both sides, xcmp comparison engine, no confidence-region restriction since
-    // none exists for this truth set. `-o happy` sets the output filename prefix -- hap.py
-    // writes happy.summary.csv (the headline precision/recall/F1 table), happy.extended.csv
-    // (broken down further), happy.vcf.gz (annotated combined callset), and a few others.
+    // `-o som` sets the output filename prefix. Confirmed via som.py's own source (not guessed):
+    // bare `-N` unconditionally writes som.stats.csv + som.metrics.json; `--happy-stats` adds the
+    // friendlier som.summary.csv table read like hap.py's own summary.csv would have been.
     """
-    hap.py \\
+    som.py \\
         ${truth_vcf} \\
         ${query_vcf} \\
         -r ${reference_fasta} \\
-        -o happy
+        -o som \\
+        -N \\
+        --happy-stats
     """
 }

@@ -21,9 +21,9 @@ Modules 1–2 (QC, Alignment) ran successfully end-to-end against the real full 
 
 Modules 3–4 (Contamination estimation, Mutect2 somatic calling) ran successfully end-to-end on the `dev` profile (driver-gene-BED-restricted), confirming `GetPileupSummaries` → `CalculateContamination` → `Mutect2` → `LearnReadOrientationModel` → `FilterMutectCalls` are all wired correctly against the real reference and real GATK resource bundles. Getting there took two real bugs found only by execution (`GetPileupSummaries`'s mandatory `-L`, a GATK/JVM-in-Docker heap-sizing issue) plus one real finding that isn't a bug: research into GATK's own guidance, Broad's production WDL, and nf-core/sarek confirmed unsharded genome-wide Mutect2 execution is not how this tool is meant to run anywhere, at any memory size available on this machine. Real interval-scatter/gather architecture (and likely another one-off cloud compute burst) are explicitly deferred to when real full-depth data makes them actually necessary — full story in `docs/PHASE2_NOTES.md`.
 
-## Phase 3 status (2026-08-30) — built, not yet run
+## Phase 3 status (2026-08-30) — in progress
 
-Module 5 (benchmarking, via hap.py against the NYGC COLO829 truth set) is implemented in `modules/benchmarking.nf`, extending the same `workflows/somatic.nf`. Since the only Mutect2 output that exists so far has zero variant calls (Phase 2's `dev`-profile result), this first run is only expected to prove the DAG/container/hap.py command line are wired correctly — not produce meaningful precision/recall numbers, which stay deferred until real full-genome Mutect2 execution happens. **Read `docs/PHASE3_NOTES.md` before your first Phase 3 run** — it covers the new required param, the design choices behind the hap.py invocation, and a real (if low-risk) contig-naming check worth doing if it errors out.
+Module 5 (benchmarking against the NYGC COLO829 truth set) is implemented in `modules/benchmarking.nf`, extending the same `workflows/somatic.nf`. Uses **som.py**, not hap.py, despite both shipping in the same container — hap.py expects a GT (genotype) field to judge whether a record is a real call, and neither the NYGC truth set nor Mutect2's own output carry one (both use AD/DP/AF-style somatic annotation instead), which silently zeroed out every real variant and made hap.py hard-fail; som.py is Illumina's own somatic-specific comparison tool built for exactly this. The truth set itself also had to change: the originally-chosen COLO-829 HiSeqX VCF turned out to be corrupted at the source in NYGC's own published archive (confirmed via byte-level forensics, with no fix available anywhere) — now using the COLO-829 NovaSeq VCF from the same archive instead, which reopens a platform-mismatch caveat (our FASTQs are HiSeq X Ten). Since the only Mutect2 output that exists so far has zero variant calls (Phase 2's `dev`-profile result), a successful run here is only expected to prove the DAG/container/som.py command line are wired correctly — not produce meaningful precision/recall numbers, which stay deferred until real full-genome Mutect2 execution happens. **Read `docs/PHASE3_NOTES.md` before your first Phase 3 run.**
 
 ## Repo layout
 
@@ -38,7 +38,7 @@ COLO829-somatic-pipeline/
 │   ├── reference_prep.nf      Phase 2: .fai/.dict/VCF-index auto-prep
 │   ├── contamination.nf       Module 3: GetPileupSummaries + CalculateContamination
 │   ├── mutect2.nf             Module 4: Mutect2 + LearnReadOrientationModel + FilterMutectCalls
-│   └── benchmarking.nf        Module 5: PrepareTruthVcf + hap.py benchmarking
+│   └── benchmarking.nf        Module 5: PrepareTruthVcf + som.py benchmarking
 ├── workflows/somatic.nf        wires Modules 1-5 together
 ├── bin/                       (Phase 5+)
 ├── conf/resources.config      QC + contamination thresholds (includeConfig'd from Phase 2)
