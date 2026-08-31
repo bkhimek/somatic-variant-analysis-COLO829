@@ -57,6 +57,26 @@
 // `dev` profile only, see nextflow.config) forces far larger, far fewer bins, concentrating the
 // same read count enough to plausibly clear the reference-quality filter. Left null on `full` --
 // real WGS depth shouldn't need this override, since CNVkit's own autobin is designed for it.
+//
+// Second-run finding (2026-08-31, see docs/PHASE4_NOTES.md "Second run -- findings" for the full
+// trail): with the bin-size fix above, CNVKIT_BATCH itself succeeded -- but CNVKIT_CALL then
+// failed, because CNVKIT_BATCH's work directory actually contained THREE `*.cns`-suffixed files
+// (`<prefix>.cns`, `<prefix>.call.cns`, `<prefix>.bintest.cns`), not the one plain segmented file
+// this module assumed. The broad `path("*.cns")` glob matched all three, handing CNVKIT_CALL a
+// 3-element list instead of one file, which Nextflow interpolated into the command line as three
+// space-separated positional arguments -- `cnvkit.py call` rejected the extras as "unrecognized
+// arguments." Checked against CNVkit's own current (master-branch) `commands.py` and
+// `segmentation/__init__.py` source: neither shows `batch` invoking `call`/`bintest`
+// automatically, so this may be specific to the older pinned 0.9.10 release (bioconda's cnvkit
+// recipe is already at 0.9.13 as of this writing) or some other version/flag interaction not
+// visible from current source -- left as a confirmed-by-execution fact rather than a fully
+// root-caused one. Fix: made the `cnr`/`cns` outputs exact filenames (CNVkit's own naming
+// convention from the input BAM's basename, already known and used correctly elsewhere in this
+// pipeline) instead of glob patterns, so CNVKIT_CALL only ever receives the one plain segmented
+// file regardless of what else `batch` happens to produce alongside it. Also split
+// CNVKIT_BATCH/CNVKIT_CALL into separate `publishDir` subfolders (`cnvkit/batch`, `cnvkit/call`)
+// -- otherwise CNVKIT_BATCH's own mystery `<prefix>.call.cns` and CNVKIT_CALL's genuine
+// `<prefix>.call.cns` would silently collide in the same output directory.
 
 process CNVKIT_BATCH {
     tag { tumour_id }
@@ -65,7 +85,7 @@ process CNVKIT_BATCH {
     // blocks automated tag-list fetching from this sandbox), this one was confirmed correct by
     // a real execution 2026-08-31 -- pulled and ran without any manifest-not-found error.
     container 'quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0'
-    publishDir "${params.outdir}/cnvkit", mode: 'copy'
+    publishDir "${params.outdir}/cnvkit/batch", mode: 'copy'
 
     input:
     tuple val(tumour_id), path(tumour_bam), path(tumour_bai)
@@ -75,10 +95,10 @@ process CNVKIT_BATCH {
     val(target_avg_size)   // params.cnvkit_target_avg_size -- null on `full` (let autobin decide), a large fixed value on `dev` (see nextflow.config and this module's header comment for why)
 
     output:
-    path("*.cnr"), emit: cnr
-    path("*.cns"), emit: cns
+    path("${tumour_bam.baseName}.cnr"), emit: cnr
+    path("${tumour_bam.baseName}.cns"), emit: cns   // exact filename, not a glob -- see "Second-run finding" above for why
     path("*.cnn"), emit: coverage_files, optional: true
-    path("*"), emit: all_outputs
+    path("*"), emit: all_outputs   // catch-all for reference.cnn plus whatever else batch produces (e.g. the mystery .call.cns/.bintest.cns from the finding above) -- kept for reference, not consumed downstream
 
     script:
     // -m wgs: whole-genome mode -- treats the reference's sequencing-accessible regions as
@@ -112,10 +132,10 @@ process CNVKIT_BATCH {
 process CNVKIT_CALL {
     tag { cns_file.baseName }
     container 'quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0'
-    publishDir "${params.outdir}/cnvkit", mode: 'copy'
+    publishDir "${params.outdir}/cnvkit/call", mode: 'copy'
 
     input:
-    path(cns_file)
+    path(cns_file)   // CNVKIT_BATCH.out.cns -- now an exact single file, not a glob (see that process's output block)
 
     output:
     path("*.call.cns"), emit: call_cns
