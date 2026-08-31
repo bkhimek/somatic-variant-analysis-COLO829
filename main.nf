@@ -27,10 +27,10 @@
  * docs/PHASE3_NOTES.md for what a run against the current Mutect2 output can and can't validate.
  *
  * As of Phase 4, CNVKIT_BATCH/CNVKIT_CALL run automatically alongside Module 4/5 with no new
- * required params -- but see docs/PHASE4_NOTES.md before your first run: the CNVkit container
- * tag has NOT been independently verified against the real registry (same quay.io robots.txt
- * limitation that already produced two wrong-tag bugs in Phases 2-3), so confirm it yourself
- * with a real `docker pull` first.
+ * required params. First execution (2026-08-31) found the dev-profile subsample too sparse for
+ * CNVkit's default whole-genome bin size -- see docs/PHASE4_NOTES.md and params.cnvkit_
+ * target_avg_size (nextflow.config) for the fix, and PHASE4_NOTES.md's "Real, unverified risks"
+ * for what's still unconfirmed before you run this again.
  */
 
 nextflow.enable.dsl = 2

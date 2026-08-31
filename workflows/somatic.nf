@@ -217,7 +217,8 @@ workflow SOMATIC {
     // no new branching needed, CNVkit just wants the same dedup BAMs Mutect2 does.
     CNVKIT_BATCH(
         tumour_bam_ch, normal_bam_ch,
-        reference_fasta, fai_ch
+        reference_fasta, fai_ch,
+        params.cnvkit_target_avg_size
     )
 
     CNVKIT_CALL(CNVKIT_BATCH.out.cns)

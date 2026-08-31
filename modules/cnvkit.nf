@@ -39,18 +39,31 @@
 //     our situation more than usual -- the only tumour BAM that exists so far (Phase 2's
 //     `dev`-profile result) comes from a 10,000-read-pair subsample spread across the whole
 //     genome, so most whole-genome bins will have effectively zero coverage.
+//
+// First-run finding (2026-08-31, see docs/PHASE4_NOTES.md "First run -- findings" for the full
+// trail): the first real execution failed with "Missing output file(s) `*.cns`" -- CNVKIT_BATCH
+// exited 0 but never wrote a .cns, because `fix` logged "Keeping 0 of 58496 bins" and wrote an
+// empty (0-region) .cnr for `segment` to work from. Traced (via CNVkit's own `fix.py` source, not
+// guessed) to `mask_bad_bins()` -- an always-on filter against the REFERENCE's own per-bin
+// log2/spread QC, unrelated to `--drop-low-coverage` (that flag only affects `segment`'s handling
+// of the tumour side, and never got the chance to matter here). The reference itself, built from
+// the equally-sparse normal BAM, had already logged "100.0% bins failed filters" during
+// `reference` construction -- with CNVkit's autobin-computed ~53kb bins and this subsample's
+// ~20,000 reads spread across the whole 3.1Gb genome (~0.001x effective coverage), the expected
+// reads per bin is a fraction of one, so essentially every bin's log2/spread statistics are
+// degenerate. This is a genuine statistical floor, not a flag or container bug -- the same shape
+// as Phase 1's "duplication rate needs real depth" and Phase 2's "unsharded genome-wide Mutect2
+// doesn't fit this machine" findings. Fix: `params.cnvkit_target_avg_size` (set to 10Mb on the
+// `dev` profile only, see nextflow.config) forces far larger, far fewer bins, concentrating the
+// same read count enough to plausibly clear the reference-quality filter. Left null on `full` --
+// real WGS depth shouldn't need this override, since CNVkit's own autobin is designed for it.
 
 process CNVKIT_BATCH {
     tag { tumour_id }
     // Container tag inherited from Phase 0 research (docs/data_sources.md §7): the plan's
-    // original choice, and the bioconda recipe for cnvkit 0.9.10 build 0 was confirmed to exist
-    // -- but the exact quay.io tag string itself was NOT independently verified, because quay.io
-    // blocks automated tag-list fetching from this sandbox (the same limitation that already
-    // produced two wrong-tag bugs this project has hit and fixed by execution -- htslib in
-    // Phase 3's "First run -- findings", hap.py in its "Second run -- findings"). Given that
-    // history, don't run this without confirming the tag yourself first:
-    //     docker pull quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0
-    // See docs/PHASE4_NOTES.md for what to do if that pull fails.
+    // original choice. Unlike htslib and hap.py in Phase 3 (both guessed wrong, since quay.io
+    // blocks automated tag-list fetching from this sandbox), this one was confirmed correct by
+    // a real execution 2026-08-31 -- pulled and ran without any manifest-not-found error.
     container 'quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0'
     publishDir "${params.outdir}/cnvkit", mode: 'copy'
 
@@ -59,6 +72,7 @@ process CNVKIT_BATCH {
     tuple val(normal_id), path(normal_bam), path(normal_bai)
     path(reference_fasta)
     path(reference_fai)
+    val(target_avg_size)   // params.cnvkit_target_avg_size -- null on `full` (let autobin decide), a large fixed value on `dev` (see nextflow.config and this module's header comment for why)
 
     output:
     path("*.cnr"), emit: cnr
@@ -73,11 +87,15 @@ process CNVKIT_BATCH {
     // -y: see module header comment -- COLO829's donor is male, confirmed via ATCC CRL-1974.
     // --drop-low-coverage: see module header comment -- recommended by CNVkit for tumor samples,
     // and especially relevant given how sparse the only tumour BAM so far actually is.
+    // --target-avg-size: only added when target_avg_size is set (dev profile) -- see the
+    // "First-run finding" in this module's header comment for why the dev profile needs this and
+    // the full profile deliberately doesn't.
     // -p ${task.cpus}: parallelise CNVkit's own per-chromosome/per-sample steps, same convention
     // as bwa-mem2's -t and Nextflow's own task.cpus elsewhere in this pipeline.
     // -d .: write outputs into the process's own work directory (Nextflow's usual convention --
     // publishDir above copies them out), rather than CNVkit's own default of the current
     // directory (which would be the same thing here, but this makes the choice explicit).
+    def target_avg_size_arg = target_avg_size ? "--target-avg-size ${target_avg_size}" : ''
     """
     cnvkit.py batch ${tumour_bam} \\
         --normal ${normal_bam} \\
@@ -85,6 +103,7 @@ process CNVKIT_BATCH {
         -f ${reference_fasta} \\
         -y \\
         --drop-low-coverage \\
+        ${target_avg_size_arg} \\
         -p ${task.cpus} \\
         -d .
     """

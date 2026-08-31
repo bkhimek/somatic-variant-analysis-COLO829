@@ -167,7 +167,7 @@ Pin exact versions in `requirements.txt` once Module 9 is implemented (Phase 6).
 
 | Tool | Image | Status |
 |---|---|---|
-| CNVkit | `quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0` | Plan's original choice confirmed valid (0.9.10-0 exists in bioconda); now wired into `modules/cnvkit.nf` (Phase 4, 2026-08-31) — **still not independently verified against the real quay.io registry**, since quay.io's robots.txt blocks automated tag-list checks from this sandbox, the same limitation that already produced wrong guessed tags for htslib and hap.py (`docs/PHASE3_NOTES.md`). Run `docker pull quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0` yourself before the first Phase 4 run — see `docs/PHASE4_NOTES.md`. |
+| CNVkit | `quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0` | Plan's original choice, confirmed both by bioconda recipe research (Phase 0) and by a real `docker pull`/execution (Phase 4, 2026-08-31) — this one worked on the first try, unlike htslib and hap.py's guessed tags in Phase 3. Wired into `modules/cnvkit.nf`. |
 | hap.py | `quay.io/biocontainers/hap.py:0.3.14--py27h5c5a3ab_0` (tag corrected 2026-08-30 — `0.3.15-0` doesn't exist, biocontainers tags are `<version>--<build-string>`, confirmed with a real `docker pull`) | `pkrusche/hap.py:latest` confirmed unmaintained (~9 years since last push) — switched to the actively-rebuilt biocontainers image for consistency with the rest of the pipeline's `quay.io/biocontainers/*` convention. **Note (Phase 3, 2026-08-30):** despite the image name, Module 5 actually invokes **`som.py`** from inside this same container, not `hap.py` — `som.py` ships in the identical package and is the correct tool for a GT-less somatic VCF comparison; see `docs/PHASE3_NOTES.md`. |
 
 ---
