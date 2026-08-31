@@ -9,8 +9,13 @@
 // (short version: the only Mutect2 output that exists so far has zero variants, so this proves
 // the DAG/container/som.py command line work, not real precision/recall numbers).
 //
-// Phase 4+ (CNVkit, SigProfiler, interpretation, ...) will extend this same workflow file rather
-// than starting a new one, so the DAG stays in one place end to end.
+// Phase 4 (added 2026-08-31): Copy-number calling (Module 6) -- CNVkit's whole-genome tumour/
+// normal workflow against the same dedup BAMs Module 4 already uses, then integer copy-number
+// calls. See modules/cnvkit.nf's header comment for scope limits (no --annotate/--scatter/
+// --diagram yet) and docs/PHASE4_NOTES.md for what this run can and can't validate.
+//
+// Phase 5+ (SigProfiler, interpretation, ...) will extend this same workflow file rather than
+// starting a new one, so the DAG stays in one place end to end.
 
 include { FASTQC; MULTIQC }                                             from '../modules/fastqc.nf'
 include { BWA_MEM2_INDEX; BWA_MEM2_ALIGN; SAMTOOLS_SORT; MARK_DUPLICATES } from '../modules/alignment.nf'
@@ -18,6 +23,7 @@ include { INDEX_FASTA; CREATE_SEQUENCE_DICTIONARY; INDEX_VCF }           from '.
 include { GET_PILEUP_SUMMARIES; CALCULATE_CONTAMINATION }                from '../modules/contamination.nf'
 include { MUTECT2; LEARN_READ_ORIENTATION_MODEL; FILTER_MUTECT_CALLS }   from '../modules/mutect2.nf'
 include { PREPARE_TRUTH_VCF; SOMPY_BENCHMARK }                          from '../modules/benchmarking.nf'
+include { CNVKIT_BATCH; CNVKIT_CALL }                                   from '../modules/cnvkit.nf'
 
 workflow SOMATIC {
 
@@ -206,11 +212,23 @@ workflow SOMATIC {
         reference_fasta, fai_ch
     )
 
+    // ---- Module 6: Copy-number calling (Phase 4, added 2026-08-31) ----
+    // Reuses the same tumour_bam_ch/normal_bam_ch tuples Module 4 already branched out above --
+    // no new branching needed, CNVkit just wants the same dedup BAMs Mutect2 does.
+    CNVKIT_BATCH(
+        tumour_bam_ch, normal_bam_ch,
+        reference_fasta, fai_ch
+    )
+
+    CNVKIT_CALL(CNVKIT_BATCH.out.cns)
+
     emit:
-    dedup_bams        = MARK_DUPLICATES.out.bam       // tuple(sample_id, bam, bai) -- Phase 4 (CNVkit) can also consume this
+    dedup_bams        = MARK_DUPLICATES.out.bam       // tuple(sample_id, bam, bai)
     dedup_metrics     = MARK_DUPLICATES.out.metrics
     multiqc_report    = MULTIQC.out.report
     contamination_table = CALCULATE_CONTAMINATION.out.contamination_table
     filtered_vcf      = FILTER_MUTECT_CALLS.out.vcf    // Phase 3's benchmarking-against-truth-set target
     sompy_stats       = SOMPY_BENCHMARK.out.stats      // TP/FP/FN counts by variant type (som.stats.csv -- no --happy-stats summary table, see modules/benchmarking.nf)
+    cnvkit_cnr        = CNVKIT_BATCH.out.cnr           // bin-level log2 copy-ratio (Phase 4)
+    cnvkit_call       = CNVKIT_CALL.out.call_cns       // integer copy-number segment calls (Phase 4)
 }

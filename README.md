@@ -1,6 +1,6 @@
 # COLO829 Tumour-Normal Somatic Genomics Pipeline
 
-**Status:** Phase 1 (QC + alignment), Phase 2 (contamination + Mutect2 somatic calling), and Phase 3 (benchmarking against the NYGC truth set) all signed off — see `docs/PHASE1_NOTES.md`, `docs/PHASE2_NOTES.md`, and `docs/PHASE3_NOTES.md` for what each phase actually proved (and explicitly didn't), `docs/PHASE0_FINDINGS.md` for the Phase 0 research trail, and `docs/data_sources.md` for the living data-source/version ledger.
+**Status:** Phase 1 (QC + alignment), Phase 2 (contamination + Mutect2 somatic calling), and Phase 3 (benchmarking against the NYGC truth set) all signed off; Phase 4 (CNVkit copy-number calling) built and wired in, not yet run — see `docs/PHASE1_NOTES.md`, `docs/PHASE2_NOTES.md`, `docs/PHASE3_NOTES.md`, and `docs/PHASE4_NOTES.md` for what each phase actually proved (and explicitly didn't), `docs/PHASE0_FINDINGS.md` for the Phase 0 research trail, and `docs/data_sources.md` for the living data-source/version ledger.
 
 Tumour-normal somatic variant calling (GATK Mutect2) benchmarked against a COLO829/COLO829BL truth set, with copy-number (CNVkit), mutational signature (SigProfilerMatrixGenerator + SigProfilerAssignment), and oncogenicity/actionability interpretation layers. Full design rationale: see the project plan (kept alongside this repo, not committed here — v1.1 as of 2026-08-27).
 
@@ -23,13 +23,17 @@ Modules 3–4 (Contamination estimation, Mutect2 somatic calling) ran successful
 
 ## Phase 3 status (2026-08-30) — SIGNED OFF
 
-Module 5 (benchmarking against the NYGC COLO829 truth set) is implemented in `modules/benchmarking.nf`, extending the same `workflows/somatic.nf`, and completed its first successful end-to-end run against real data. Uses **som.py**, not hap.py, despite both shipping in the same container — hap.py expects a GT (genotype) field to judge whether a record is a real call, and neither the NYGC truth set nor Mutect2's own output carry one (both use AD/DP/AF-style somatic annotation instead), which silently zeroed out every real variant and made hap.py hard-fail; som.py is Illumina's own somatic-specific comparison tool built for exactly this. The truth set itself also had to change: the originally-chosen COLO-829 HiSeqX VCF turned out to be corrupted at the source in NYGC's own published archive (confirmed via byte-level forensics, with no fix available anywhere) — now using the COLO-829 NovaSeq VCF from the same archive instead, which reopens a platform-mismatch caveat (our FASTQs are HiSeq X Ten). Since the only Mutect2 output that exists so far has zero variant calls (Phase 2's `dev`-profile result), the successful run proved the DAG/container/som.py command line are wired correctly (`som.stats.csv` came back with the exact predicted 0 TP/0 FP/all-FN result) — it did not, and was never meant to, produce meaningful precision/recall numbers, which stay deferred until real full-genome Mutect2 execution happens. Signed off on that basis — full story, including what's explicitly deferred, in `docs/PHASE3_NOTES.md`'s "Phase 3 sign-off" section. Direction for what comes next (CNVkit/Phase 4 vs. tackling full-genome Mutect2 execution first) is still an open decision.
+Module 5 (benchmarking against the NYGC COLO829 truth set) is implemented in `modules/benchmarking.nf`, extending the same `workflows/somatic.nf`, and completed its first successful end-to-end run against real data. Uses **som.py**, not hap.py, despite both shipping in the same container — hap.py expects a GT (genotype) field to judge whether a record is a real call, and neither the NYGC truth set nor Mutect2's own output carry one (both use AD/DP/AF-style somatic annotation instead), which silently zeroed out every real variant and made hap.py hard-fail; som.py is Illumina's own somatic-specific comparison tool built for exactly this. The truth set itself also had to change: the originally-chosen COLO-829 HiSeqX VCF turned out to be corrupted at the source in NYGC's own published archive (confirmed via byte-level forensics, with no fix available anywhere) — now using the COLO-829 NovaSeq VCF from the same archive instead, which reopens a platform-mismatch caveat (our FASTQs are HiSeq X Ten). Since the only Mutect2 output that exists so far has zero variant calls (Phase 2's `dev`-profile result), the successful run proved the DAG/container/som.py command line are wired correctly (`som.stats.csv` came back with the exact predicted 0 TP/0 FP/all-FN result) — it did not, and was never meant to, produce meaningful precision/recall numbers, which stay deferred until real full-genome Mutect2 execution happens. Signed off on that basis — full story, including what's explicitly deferred, in `docs/PHASE3_NOTES.md`'s "Phase 3 sign-off" section.
+
+## Phase 4 status (2026-08-31) — built, not yet run
+
+Module 6 (CNVkit whole-genome tumour/normal copy-number calling) is implemented in `modules/cnvkit.nf`, extending the same `workflows/somatic.nf`. Designed directly from CNVkit's own documentation (the project plan's exact CNVkit wording wasn't retrieved for this build — see `docs/PHASE4_NOTES.md` for that scoping decision) rather than guessed: whole-genome mode (`-m wgs`, no target/antitarget BED needed — CNVkit computes accessible regions on the fly), `-y`/`--male-reference` included because the COLO829 donor's sex was independently verified (male, per ATCC's own CRL-1974 product page) rather than left at CNVkit's female-reference default, and `--drop-low-coverage` included per CNVkit's own recommendation for tumour samples — relevant here since the only tumour BAM that exists so far is Phase 2's near-empty `dev`-profile subsample. `--annotate`/`--scatter`/`--diagram` are deliberately deferred for this first cut (see `docs/PHASE4_NOTES.md` — same "don't add an unverified extra flag" caution Phase 3's `--happy-stats` misstep just taught). **The CNVkit container tag has not been independently verified against the real registry** (same quay.io robots.txt limitation that produced two wrong-tag bugs in Phases 2-3) — confirm it with `docker pull quay.io/biocontainers/cnvkit:0.9.10--pyhdfd78af_0` before your first run. **Read `docs/PHASE4_NOTES.md` before running this.**
 
 ## Repo layout
 
 ```
 COLO829-somatic-pipeline/
-├── main.nf                   Entry point (Phase 1 + Phase 2 + Phase 3)
+├── main.nf                   Entry point (Phase 1 + Phase 2 + Phase 3 + Phase 4)
 ├── nextflow.config            dev/full profiles + docker/singularity profiles
 ├── assets/NO_FILE             optional-input sentinel (Phase 2)
 ├── modules/
@@ -38,8 +42,9 @@ COLO829-somatic-pipeline/
 │   ├── reference_prep.nf      Phase 2: .fai/.dict/VCF-index auto-prep
 │   ├── contamination.nf       Module 3: GetPileupSummaries + CalculateContamination
 │   ├── mutect2.nf             Module 4: Mutect2 + LearnReadOrientationModel + FilterMutectCalls
-│   └── benchmarking.nf        Module 5: PrepareTruthVcf + som.py benchmarking
-├── workflows/somatic.nf        wires Modules 1-5 together
+│   ├── benchmarking.nf        Module 5: PrepareTruthVcf + som.py benchmarking
+│   └── cnvkit.nf              Module 6: CNVkit whole-genome tumour/normal copy-number calling
+├── workflows/somatic.nf        wires Modules 1-6 together
 ├── bin/                       (Phase 5+)
 ├── conf/resources.config      QC + contamination thresholds (includeConfig'd from Phase 2)
 ├── data/gene_lists/           melanoma driver gene seed list + dev_intervals.bed (real GRCh38 coords)
@@ -47,7 +52,8 @@ COLO829-somatic-pipeline/
 │   ├── PHASE0_FINDINGS.md     Phase 0 research report
 │   ├── PHASE1_NOTES.md        Phase 1 implementation notes (signed off)
 │   ├── PHASE2_NOTES.md        Phase 2 implementation notes (signed off)
-│   ├── PHASE3_NOTES.md        Phase 3 implementation notes -- read before running
+│   ├── PHASE3_NOTES.md        Phase 3 implementation notes (signed off)
+│   ├── PHASE4_NOTES.md        Phase 4 implementation notes -- read before running
 │   ├── data_sources.md        living data-source/version/licensing ledger
 │   ├── run_manifest.schema.json + run_manifest.example.json
 │   ├── somatic_interpretation.md   (Phase 5+)

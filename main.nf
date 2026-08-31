@@ -5,8 +5,10 @@
  * same SOMATIC workflow with Modules 3-4 (contamination estimation, Mutect2 somatic calling);
  * Phase 3 (2026-08-30) adds Module 5 (benchmarking against the NYGC COLO829 truth set via
  * som.py -- not hap.py, see modules/benchmarking.nf for why a GT-less somatic VCF needs som.py
- * specifically). Phase 4+ will keep extending this same workflow rather than adding new entry
- * points.
+ * specifically). Phase 4 (2026-08-31) adds Module 6 (CNVkit whole-genome tumour/normal
+ * copy-number calling -- see modules/cnvkit.nf and docs/PHASE4_NOTES.md). No new required params
+ * for this phase -- CNVkit reuses reference_fasta and the same dedup BAMs Mutect2 already
+ * consumes. Phase 5+ will keep extending this same workflow rather than adding new entry points.
  *
  * Run:
  *   conda activate nextflow
@@ -23,6 +25,12 @@
  * As of Phase 3, every run also needs --truth_set_vcf (docs/data_sources.md §3 for provenance;
  * the plain uncompressed VCF path is fine, PREPARE_TRUTH_VCF bgzips/indexes it if needed). See
  * docs/PHASE3_NOTES.md for what a run against the current Mutect2 output can and can't validate.
+ *
+ * As of Phase 4, CNVKIT_BATCH/CNVKIT_CALL run automatically alongside Module 4/5 with no new
+ * required params -- but see docs/PHASE4_NOTES.md before your first run: the CNVkit container
+ * tag has NOT been independently verified against the real registry (same quay.io robots.txt
+ * limitation that already produced two wrong-tag bugs in Phases 2-3), so confirm it yourself
+ * with a real `docker pull` first.
  */
 
 nextflow.enable.dsl = 2
