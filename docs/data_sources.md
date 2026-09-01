@@ -38,6 +38,39 @@ Full research trail and rationale for the decisions below: `docs/PHASE0_FINDINGS
 - **Caveat carried into `docs/benchmarking_results.md`:** the paper's own reported "235X"/"155X" (tumour/normal) coverage figures are *combined across all five sequencing technologies* used in PRJEB27698 (Illumina, 10x Genomics, Nanopore, PacBio, BioNano) — not this HiSeqX run alone. Don't quote those numbers as this pipeline's actual input depth; use the per-run `base_count`-derived ~37X/~98X figures above, and replace with `samtools depth`/`stats` output once BAMs exist (Phase 1).
 - **Donor sex — confirmed 2026-08-31 (needed for Phase 4/CNVkit's sex-chromosome ploidy handling):** [ATCC's own COLO 829 (CRL-1974) product page](https://www.atcc.org/products/crl-1974) lists the donor as a 45-year-old **male**. Verified rather than assumed, since getting this wrong would silently bias every CNVkit chrX/chrY call — `modules/cnvkit.nf` passes `-y`/`--male-reference` on that basis. See `docs/PHASE4_NOTES.md`.
 
+**Real-depth data via ENA's pre-aligned GRCh37 BAMs — found and extracted 2026-09-01, see `docs/MUTECT2_SCATTERGATHER_NOTES.md`'s context for why this was needed:** every dedup BAM this project had actually produced through 2026-09-01 turned out to be the same 10,000-read-pair `dev`-profile subsample, confirmed via `samtools flagstat` — despite `docs/PHASE1_NOTES.md`/the README describing Phase 1 as having "run successfully end-to-end against the real full genome." That phrase meant the full GRCh38 *reference* was used as the alignment target, not that real full-sequencing-depth reads existed — a real ambiguity in that earlier wording that led to a wrong assumption later in the project (see `docs/MUTECT2_SCATTERGATHER_NOTES.md`). No real full-depth FASTQ or BAM had ever actually been downloaded.
+
+Checking ENA's file listing for the real accessions (§1 above) found something better than the raw FASTQ pull originally planned: both runs have a **pre-aligned, deduplicated, realigned BAM submitted directly to ENA**, each with a `.bai` index —
+```
+ERR2752450 (tumour, COLO829T): https://ftp.sra.ebi.ac.uk/vol1/run/ERR275/ERR2752450/COLO829T_dedup.realigned.bam(.bai)
+ERR2752449 (normal, COLO829R): https://ftp.sra.ebi.ac.uk/vol1/run/ERR275/ERR2752449/COLO829R_dedup.realigned.bam(.bai)
+```
+confirmed via `curl` against ENA's own filereport API (`submitted_ftp`/`submitted_format` columns), not assumed. With a `.bai` present, `samtools` can pull just the reads overlapping a chosen region straight over HTTPS (range requests against the remote index) — no need to download or align the full ~174GB combined raw FASTQ (exact sizes confirmed via the same API call's `fastq_bytes` column: ~124.6GB tumour, ~49.4GB normal) for a first real-depth test.
+
+**Reference build mismatch — checked, not assumed:** `samtools view -H` against the tumour BAM shows bare contig names (`SN:1`, `SN:2`, ... `SN:X`/`SN:Y`/`SN:MT`) with `LN:249250621` for contig `1` — GRCh37's chr1 length (248,956,422 for GRCh38) confirms these BAMs are aligned to **GRCh37**, not the GRCh38 build (§2 above) the rest of this pipeline uses. Using them directly against `Homo_sapiens_assembly38.fasta`/the GATK hg38 resource bundle would hit exactly the "incompatible contigs" problem §2's own reference-choice caveat warns about, just from the opposite direction (wrong build, not wrong hg38 variant).
+
+**Resolution: use the remote BAM only to extract which real reads land in the melanoma gene panel, then re-align those reads to GRCh38 through this pipeline's own Module 1-2 — not use the BAM's alignment or coordinates directly.** `data/gene_lists/dev_intervals_grch37.bed` (new file, same 8 genes as `dev_intervals.bed`, same Ensembl-lookup-then-pad method but against Ensembl's GRCh37 archive API and confirmed `assembly_name: "GRCh37"` per gene) gives `samtools view -L` the right coordinates for these specific remote BAMs. Extraction commands (run from WSL, not from this sandbox — same convention as every other real-data download in this file):
+```bash
+mkdir -p ~/projects/somatic-variant-analysis-COLO829/real_data && cd $_
+
+# Tumour (ERR2752450 / COLO829T) -- real ~98X depth in-panel
+samtools view -b -L ../data/gene_lists/dev_intervals_grch37.bed \
+  https://ftp.sra.ebi.ac.uk/vol1/run/ERR275/ERR2752450/COLO829T_dedup.realigned.bam \
+  -o COLO829_real_genepanel.bam
+samtools sort -n -o COLO829_real_genepanel.namesorted.bam COLO829_real_genepanel.bam
+samtools fastq -1 COLO829_real_R1.fastq.gz -2 COLO829_real_R2.fastq.gz -0 /dev/null -s /dev/null -n COLO829_real_genepanel.namesorted.bam
+
+# Normal (ERR2752449 / COLO829R) -- real ~37X depth in-panel
+samtools view -b -L ../data/gene_lists/dev_intervals_grch37.bed \
+  https://ftp.sra.ebi.ac.uk/vol1/run/ERR275/ERR2752449/COLO829R_dedup.realigned.bam \
+  -o COLO829BL_real_genepanel.bam
+samtools sort -n -o COLO829BL_real_genepanel.namesorted.bam COLO829BL_real_genepanel.bam
+samtools fastq -1 COLO829BL_real_R1.fastq.gz -2 COLO829BL_real_R2.fastq.gz -0 /dev/null -s /dev/null -n COLO829BL_real_genepanel.namesorted.bam
+```
+The resulting FASTQs feed this pipeline exactly like any other input (`--tumour_reads_1`/etc.), on the `dev` profile (its `-L` restriction to `dev_intervals.bed` — the GRCh38 version — already matches where this data actually has coverage, since reads outside the panel were never extracted).
+
+**Known, disclosed limitation, not silently glossed over:** `samtools view -L` only requires a read's own alignment position to overlap the region — a read pair straddling a window boundary can have its mate fall just outside it, so a small number of boundary-proximal pairs may come through incomplete (and `samtools fastq`'s `-0`/`-s` disposal of non-properly-paired reads means those get dropped rather than miscounted). The existing ±2000bp padding provides some slack; this isn't treated as a correctness bug, just an honestly-stated edge effect of targeted extraction versus a true full-BAM pull.
+
 ---
 
 ## 2. Reference genome — RESOLVED 2026-08-29
