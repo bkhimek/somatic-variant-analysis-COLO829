@@ -27,10 +27,15 @@
  * docs/PHASE3_NOTES.md for what a run against the current Mutect2 output can and can't validate.
  *
  * As of Phase 4, CNVKIT_BATCH/CNVKIT_CALL run automatically alongside Module 4/5 with no new
- * required params. First execution (2026-08-31) found the dev-profile subsample too sparse for
- * CNVkit's default whole-genome bin size -- see docs/PHASE4_NOTES.md and params.cnvkit_
- * target_avg_size (nextflow.config) for the fix, and PHASE4_NOTES.md's "Real, unverified risks"
- * for what's still unconfirmed before you run this again.
+ * required params. Phase 4 is signed off -- see docs/PHASE4_NOTES.md.
+ *
+ * Module 4 (Mutect2) revisited 2026-09-01: unsharded genome-wide Mutect2 (deferred in Phase 2)
+ * is now real interval scatter/gather instead -- SplitIntervals -> N x Mutect2 -> MergeVcfs/
+ * MergeMutectStats/LearnReadOrientationModel -> FilterMutectCalls, researched against GATK's own
+ * docs, Broad's production mutect2.wdl, and nf-core/sarek's actual source (not guessed). New
+ * optional param: params.mutect2_scatter_count (nextflow.config), profile-conditional, not
+ * required. Not yet run -- see docs/MUTECT2_SCATTERGATHER_NOTES.md before trying it, especially
+ * its "Real, unverified risks" section.
  */
 
 nextflow.enable.dsl = 2

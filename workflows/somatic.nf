@@ -16,12 +16,21 @@
 //
 // Phase 5+ (SigProfiler, interpretation, ...) will extend this same workflow file rather than
 // starting a new one, so the DAG stays in one place end to end.
+//
+// Module 4 revisited (2026-09-01): Phase 2 deferred real full-genome Mutect2 execution after an
+// unsharded genome-wide invocation didn't fit this machine at any memory size tried
+// (docs/PHASE2_NOTES.md). That's now been addressed with real interval scatter/gather (many
+// per-shard Mutect2 calls merged back together), not a bigger single call -- see
+// docs/MUTECT2_SCATTERGATHER_NOTES.md and modules/mutect2.nf's header comment for the design
+// (researched against GATK's own docs, Broad's production mutect2.wdl, and nf-core/sarek's
+// actual source, not guessed).
 
 include { FASTQC; MULTIQC }                                             from '../modules/fastqc.nf'
 include { BWA_MEM2_INDEX; BWA_MEM2_ALIGN; SAMTOOLS_SORT; MARK_DUPLICATES } from '../modules/alignment.nf'
 include { INDEX_FASTA; CREATE_SEQUENCE_DICTIONARY; INDEX_VCF }           from '../modules/reference_prep.nf'
 include { GET_PILEUP_SUMMARIES; CALCULATE_CONTAMINATION }                from '../modules/contamination.nf'
-include { MUTECT2; LEARN_READ_ORIENTATION_MODEL; FILTER_MUTECT_CALLS }   from '../modules/mutect2.nf'
+include { SCATTER_INTERVALS_BY_NS; SPLIT_INTERVALS; MUTECT2; MERGE_VCFS;
+          MERGE_MUTECT_STATS; LEARN_READ_ORIENTATION_MODEL; FILTER_MUTECT_CALLS } from '../modules/mutect2.nf'
 include { PREPARE_TRUTH_VCF; SOMPY_BENCHMARK }                          from '../modules/benchmarking.nf'
 include { CNVKIT_BATCH; CNVKIT_CALL }                                   from '../modules/cnvkit.nf'
 
@@ -152,8 +161,15 @@ workflow SOMATIC {
         tumour: it[0] == 'COLO829'
         normal: it[0] == 'COLO829BL'
     }
-    tumour_bam_ch = dedup_bams_branched.tumour
-    normal_bam_ch = dedup_bams_branched.normal
+    // .first() added 2026-09-01 for the Mutect2 interval scatter/gather rework below -- MUTECT2
+    // now runs once per interval shard instead of once total, so its tumour/normal BAM inputs
+    // need to be broadcastable value channels (reused across every shard task), not plain
+    // 1-item queue channels that would drain after the first shard and silently stop the rest
+    // from ever running. Same fix already applied elsewhere in this file (BWA_MEM2_INDEX.out.
+    // index.first(), fai_ch, dict_ch, panel_of_normals_ch, ...) for the identical reason.
+    // Harmless for CNVKIT_BATCH below, which only ever consumes these once regardless.
+    tumour_bam_ch = dedup_bams_branched.tumour.first()
+    normal_bam_ch = dedup_bams_branched.normal.first()
 
     pileups_branched = GET_PILEUP_SUMMARIES.out.pileups.branch {
         tumour: it[0] == 'COLO829'
@@ -165,18 +181,49 @@ workflow SOMATIC {
         pileups_branched.normal.map { sample_id, table -> table }
     )
 
-    // ---- Module 4: Mutect2 somatic calling ----
+    // ---- Module 4: Mutect2 somatic calling, via interval scatter/gather (revisited
+    // 2026-09-01 -- see docs/MUTECT2_SCATTERGATHER_NOTES.md and modules/mutect2.nf's header
+    // comment for the full research trail and why each tool/flag below was chosen) ----
+    // NOTE: this reuses interval_ch's underlying param (params.interval_list), but needs a
+    // real interval list to feed SplitIntervals -- interval_ch itself can be the NO_FILE
+    // sentinel (on `full`), which SplitIntervals can't take as -L. calling_intervals_ch below
+    // is this scatter/gather rework's own equivalent, built the same way GET_PILEUP_SUMMARIES'
+    // interval_ch is (dev: use params.interval_list directly; full: no restriction -- but unlike
+    // GET_PILEUP_SUMMARIES, Mutect2's scatter/gather needs an actual interval list even on
+    // `full`, so SCATTER_INTERVALS_BY_NS builds one from the reference's own N-gaps instead of
+    // omitting -L entirely).
+    if (params.interval_list) {
+        calling_intervals_ch = Channel.value(file(params.interval_list))
+    } else {
+        SCATTER_INTERVALS_BY_NS(reference_fasta, fai_ch, dict_ch)
+        calling_intervals_ch = SCATTER_INTERVALS_BY_NS.out.acgt_intervals
+    }
+
+    SPLIT_INTERVALS(
+        reference_fasta, fai_ch, dict_ch,
+        calling_intervals_ch,
+        params.mutect2_scatter_count
+    )
+
+    // .flatten() turns SplitIntervals' output-directory glob (which Nextflow hands back as ONE
+    // list, even when it matches many files) into one channel item per shard, so MUTECT2 below
+    // actually runs once per shard rather than once total against a list input -- applying
+    // Phase 4's CNVKIT_CALL glob-collision lesson (docs/PHASE4_NOTES.md) proactively here.
+    mutect2_shards_ch = SPLIT_INTERVALS.out.shards.flatten()
+
     MUTECT2(
         tumour_bam_ch, normal_bam_ch,
         reference_fasta, fai_ch, dict_ch,
         panel_of_normals_ch, germline_resource_ch,
-        interval_ch
+        mutect2_shards_ch
     )
 
-    LEARN_READ_ORIENTATION_MODEL(MUTECT2.out.f1r2)
+    MERGE_VCFS(MUTECT2.out.vcf.collect(), MUTECT2.out.vcf_index.collect())
+    MERGE_MUTECT_STATS(MUTECT2.out.stats.collect())
+    LEARN_READ_ORIENTATION_MODEL(MUTECT2.out.f1r2.collect())
 
     FILTER_MUTECT_CALLS(
-        MUTECT2.out.vcf, MUTECT2.out.vcf_index, MUTECT2.out.stats,
+        MERGE_VCFS.out.vcf, MERGE_VCFS.out.vcf_index, MERGE_MUTECT_STATS.out.stats,
         reference_fasta, fai_ch, dict_ch,
         CALCULATE_CONTAMINATION.out.contamination_table,
         CALCULATE_CONTAMINATION.out.segments_table,
