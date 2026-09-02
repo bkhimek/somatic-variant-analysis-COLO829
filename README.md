@@ -51,7 +51,9 @@ COLO829-somatic-pipeline/
 │   ├── benchmarking.nf        Module 5: PrepareTruthVcf + som.py benchmarking
 │   └── cnvkit.nf              Module 6: CNVkit whole-genome tumour/normal copy-number calling
 ├── workflows/somatic.nf        wires Modules 1-6 together
-├── bin/                       (Phase 5+)
+├── bin/
+│   └── extract_real_gene_panel.sh  robust per-gene retry extraction of real reads from ENA's
+│                                    pre-aligned GRCh37 BAMs (added 2026-09-02, see docs/data_sources.md §1)
 ├── conf/resources.config      QC + contamination thresholds (includeConfig'd from Phase 2)
 ├── data/gene_lists/           melanoma driver gene seed list + dev_intervals.bed (GRCh38 coords)
 │                              + dev_intervals_grch37.bed (same genes, GRCh37 -- for extracting real reads
