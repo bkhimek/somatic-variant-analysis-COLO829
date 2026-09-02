@@ -1,6 +1,6 @@
 # Module 8 — Oncogenicity/actionability interpretation (2026-09-02)
 
-**Status: built and manually validated component-by-component; not yet run as a wired Nextflow DAG.** Every real risk this design raised was checked against a live system before being coded around, not guessed — see below. What's still open is running `nextflow run main.nf ...` itself with this module wired in; that's a genuinely new step, distinct from the manual `docker run` testing that validated each piece individually.
+**Status: every component, including `bin/civic_annotate.py` itself, manually validated against real data; not yet run as a wired Nextflow DAG.** Every real risk this design raised was checked against a live system before being coded around, not guessed — see below. What's still open is running `nextflow run main.nf ...` itself with this module wired in; that's a genuinely new step, distinct from the manual `docker run`/standalone-script testing that validated each piece individually.
 
 ## Why CIViC, not COSMIC's Cancer Gene Census
 
@@ -33,6 +33,14 @@ This sandbox cannot reach `civicdb.org` or `quay.io` directly (both return 403 a
    } } } } }
    ```
    Returned real data — BRAF A598V's evidence item (level C, disease Melanoma, therapies BRAF Inhibitor / MEK Inhibitor) — confirming every field name used in `bin/civic_annotate.py` is real, not guessed. No registration or API key needed at this project's query volume (a handful of genes).
+
+## `bin/civic_annotate.py` itself, tested standalone before any Nextflow run (2026-09-02)
+
+Ran directly (`python3 bin/civic_annotate.py results/mutect2/annotated_pass.vcf report.tsv`) against the real 8-record annotated PASS VCF, before wiring into a Nextflow DAG. All 8 behaved exactly as designed:
+
+- **BRAF V600E** matched CIViC's `V600E` exactly — 132 real evidence rows returned (evidence levels B/C/D, spanning melanoma sensitivity/resistance, thyroid cancer, colorectal cancer, and several other indications). The large row count is real breadth of curation for one of oncology's most-studied variants, not a bug.
+- **TERT promoter, both BRAF-intronic calls, all three TP53 downstream/UTR calls** (5 records) — correctly reported `civic_variant_matched` empty with the honest note "Non-coding annotation (MODIFIER impact) — no protein change to match against CIViC." Exactly the intended behavior for calls that categorically have no protein-level HGVS.p.
+- **CDKN2A frameshift** — tried all three real candidate names generated from its three annotated transcripts (`A17fs`, `A68fs`, `G83fs`) against CIViC's real CDKN2A variant list (confirmed live: `Q70fs*78`, `S56fs*51`, plus broad category variants like `Loss`/`Deletion`/`Mutation` this module deliberately does not fall back to, since matching to a category isn't evidence for the specific called variant) — no exact match, correctly reported as such rather than guessed. Worth noting, not chasing further right now: CIViC's `S56fs*51` shares the exact `*51` stop-position suffix with Cellosaurus's documented COLO829 genotype (`p.Ala68Glyfs*51`) despite the different amino-acid position — plausibly the same real `c.203_204delCG` deletion named via CDKN2A's alternate p14ARF reading frame (CDKN2A is a known special case: two overlapping isoforms translate the same DNA change into different protein sequences), but that's a hypothesis, not confirmed, and the module correctly declines to guess at cross-isoform name equivalence rather than risk a false match here or on some other gene later.
 
 ## What the module actually does
 
