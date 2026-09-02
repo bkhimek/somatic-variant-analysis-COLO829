@@ -33,6 +33,7 @@ include { SCATTER_INTERVALS_BY_NS; SPLIT_INTERVALS; MUTECT2; MERGE_VCFS;
           MERGE_MUTECT_STATS; LEARN_READ_ORIENTATION_MODEL; FILTER_MUTECT_CALLS } from '../modules/mutect2.nf'
 include { PREPARE_TRUTH_VCF; SOMPY_BENCHMARK }                          from '../modules/benchmarking.nf'
 include { CNVKIT_BATCH; CNVKIT_CALL }                                   from '../modules/cnvkit.nf'
+include { FILTER_PASS_VARIANTS; SNPEFF_DOWNLOAD; SNPEFF_ANNOTATE; CIVIC_ANNOTATE } from '../modules/oncogenicity.nf'
 
 workflow SOMATIC {
 
@@ -270,6 +271,26 @@ workflow SOMATIC {
 
     CNVKIT_CALL(CNVKIT_BATCH.out.cns)
 
+    // ---- Module 8: Oncogenicity/actionability interpretation (added 2026-09-02) ----
+    // See modules/oncogenicity.nf's header comment for the full design trail (CIViC over COSMIC
+    // CGC, SnpEff hg38 vs GRCh38.* naming, the PASS-only pre-filter fix for a real OutOfMemoryError).
+    FILTER_PASS_VARIANTS(FILTER_MUTECT_CALLS.out.vcf)
+
+    // Auto-detect-or-download for the SnpEff hg38 database, same pattern as .fai/.dict above --
+    // skip the (slow, network-dependent) download if a previous run already pulled it into
+    // params.snpeff_data_dir.
+    def snpeff_db_marker = file("${params.snpeff_data_dir}/hg38")
+    if (snpeff_db_marker.exists()) {
+        log.info "Existing SnpEff hg38 database found at ${snpeff_db_marker} -- skipping SNPEFF_DOWNLOAD"
+        snpeff_db_ch = Channel.value(snpeff_db_marker)
+    } else {
+        SNPEFF_DOWNLOAD()
+        snpeff_db_ch = SNPEFF_DOWNLOAD.out.db_dir.first()
+    }
+
+    SNPEFF_ANNOTATE(FILTER_PASS_VARIANTS.out.vcf, snpeff_db_ch)
+    CIVIC_ANNOTATE(SNPEFF_ANNOTATE.out.vcf)
+
     emit:
     dedup_bams        = MARK_DUPLICATES.out.bam       // tuple(sample_id, bam, bai)
     dedup_metrics     = MARK_DUPLICATES.out.metrics
@@ -279,4 +300,5 @@ workflow SOMATIC {
     sompy_stats       = SOMPY_BENCHMARK.out.stats      // TP/FP/FN counts by variant type (som.stats.csv -- no --happy-stats summary table, see modules/benchmarking.nf)
     cnvkit_cnr        = CNVKIT_BATCH.out.cnr           // bin-level log2 copy-ratio (Phase 4)
     cnvkit_call       = CNVKIT_CALL.out.call_cns       // integer copy-number segment calls (Phase 4)
+    civic_report      = CIVIC_ANNOTATE.out.report      // per-PASS-call CIViC evidence lookup (Module 8)
 }

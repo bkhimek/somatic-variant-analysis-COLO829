@@ -1,6 +1,6 @@
 # COLO829 Tumour-Normal Somatic Genomics Pipeline
 
-**Status:** Phase 1 (QC + alignment), Phase 2 (contamination + Mutect2 somatic calling), Phase 3 (benchmarking against the NYGC truth set), and Phase 4 (CNVkit copy-number calling) all signed off. Module 4 (Mutect2) has since been revisited (2026-09-01) to close out the "unsharded genome-wide Mutect2 doesn't fit this machine" limitation Phase 2 deferred — real interval scatter/gather, designed against GATK's own docs, Broad's production WDL, and nf-core/sarek's source, built but **not yet run**. See `docs/PHASE1_NOTES.md`, `docs/PHASE2_NOTES.md`, `docs/PHASE3_NOTES.md`, `docs/PHASE4_NOTES.md`, and `docs/MUTECT2_SCATTERGATHER_NOTES.md` for what's actually been proved (and explicitly hasn't), `docs/PHASE0_FINDINGS.md` for the Phase 0 research trail, and `docs/data_sources.md` for the living data-source/version ledger.
+**Status:** Phase 1 (QC + alignment), Phase 2 (contamination + Mutect2 somatic calling), Phase 3 (benchmarking against the NYGC truth set), and Phase 4 (CNVkit copy-number calling) all signed off. Module 4 (Mutect2) has since been revisited (2026-09-01) to close out the "unsharded genome-wide Mutect2 doesn't fit this machine" limitation Phase 2 deferred — real interval scatter/gather, designed against GATK's own docs, Broad's production WDL, and nf-core/sarek's source, built and confirmed via a real 2026-09-02 run against real data. Module 8 (oncogenicity/actionability interpretation, CIViC-based) is built and manually component-validated but **not yet run as a wired Nextflow DAG** — see `docs/ONCOGENICITY_NOTES.md`. See `docs/PHASE1_NOTES.md`, `docs/PHASE2_NOTES.md`, `docs/PHASE3_NOTES.md`, `docs/PHASE4_NOTES.md`, and `docs/MUTECT2_SCATTERGATHER_NOTES.md` for what's actually been proved (and explicitly hasn't), `docs/PHASE0_FINDINGS.md` for the Phase 0 research trail, `docs/REAL_DATA_RESULTS.md` for the first real-data findings, `docs/ONCOGENICITY_NOTES.md` for Module 8, and `docs/data_sources.md` for the living data-source/version ledger.
 
 Tumour-normal somatic variant calling (GATK Mutect2) benchmarked against a COLO829/COLO829BL truth set, with copy-number (CNVkit), mutational signature (SigProfilerMatrixGenerator + SigProfilerAssignment), and oncogenicity/actionability interpretation layers. Full design rationale: see the project plan (kept alongside this repo, not committed here — v1.1 as of 2026-08-27).
 
@@ -53,11 +53,13 @@ COLO829-somatic-pipeline/
 │   ├── contamination.nf       Module 3: GetPileupSummaries + CalculateContamination
 │   ├── mutect2.nf             Module 4: Mutect2 + LearnReadOrientationModel + FilterMutectCalls
 │   ├── benchmarking.nf        Module 5: PrepareTruthVcf + som.py benchmarking
-│   └── cnvkit.nf              Module 6: CNVkit whole-genome tumour/normal copy-number calling
-├── workflows/somatic.nf        wires Modules 1-6 together
+│   ├── cnvkit.nf              Module 6: CNVkit whole-genome tumour/normal copy-number calling
+│   └── oncogenicity.nf        Module 8: PASS-filter -> SnpEff hg38 annotation -> CIViC lookup (docs/ONCOGENICITY_NOTES.md)
+├── workflows/somatic.nf        wires Modules 1-8 together
 ├── bin/
-│   └── extract_real_gene_panel.sh  robust per-gene retry extraction of real reads from ENA's
-│                                    pre-aligned GRCh37 BAMs (added 2026-09-02, see docs/data_sources.md §1)
+│   ├── extract_real_gene_panel.sh  robust per-gene retry extraction of real reads from ENA's
+│   │                                pre-aligned GRCh37 BAMs (added 2026-09-02, see docs/data_sources.md §1)
+│   └── civic_annotate.py      Module 8: matches SnpEff HGVS.p output to CIViC evidence (docs/ONCOGENICITY_NOTES.md)
 ├── conf/resources.config      QC + contamination thresholds (includeConfig'd from Phase 2)
 ├── data/gene_lists/           melanoma driver gene seed list + dev_intervals.bed (GRCh38 coords)
 │                              + dev_intervals_grch37.bed (same genes, GRCh37 -- for extracting real reads

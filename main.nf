@@ -34,8 +34,14 @@
  * MergeMutectStats/LearnReadOrientationModel -> FilterMutectCalls, researched against GATK's own
  * docs, Broad's production mutect2.wdl, and nf-core/sarek's actual source (not guessed). New
  * optional param: params.mutect2_scatter_count (nextflow.config), profile-conditional, not
- * required. Not yet run -- see docs/MUTECT2_SCATTERGATHER_NOTES.md before trying it, especially
- * its "Real, unverified risks" section.
+ * required. Confirmed via a real 2026-09-02 run against real gene-panel data -- see
+ * docs/REAL_DATA_RESULTS.md.
+ *
+ * Module 8 (oncogenicity/actionability interpretation, added 2026-09-02): PASS-only filter ->
+ * SnpEff hg38 annotation -> CIViC evidence lookup, runs automatically after FilterMutectCalls, no
+ * new required params (params.snpeff_data_dir defaults to a project-relative path). Built and
+ * manually component-validated but not yet run as a wired Nextflow DAG -- see
+ * docs/ONCOGENICITY_NOTES.md before trying it.
  */
 
 nextflow.enable.dsl = 2
