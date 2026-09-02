@@ -1,6 +1,6 @@
 # Module 8 — Oncogenicity/actionability interpretation (2026-09-02)
 
-**Status: every component, including `bin/civic_annotate.py` itself, manually validated against real data; not yet run as a wired Nextflow DAG.** Every real risk this design raised was checked against a live system before being coded around, not guessed — see below. What's still open is running `nextflow run main.nf ...` itself with this module wired in; that's a genuinely new step, distinct from the manual `docker run`/standalone-script testing that validated each piece individually.
+**Status: MODULE 8 SIGNED OFF 2026-09-02.** Confirmed via a real `nextflow run main.nf -profile docker,dev -resume` execution: `FILTER_PASS_VARIANTS` → `SNPEFF_ANNOTATE` → `CIVIC_ANNOTATE` all ran and succeeded on the first try (everything upstream through `CNVKIT_CALL` came from cache, as expected), `SNPEFF_DOWNLOAD` was correctly auto-skipped since `snpeff_data/hg38` already existed from this module's own manual testing, and the resulting `results/oncogenicity/civic_report.tsv` is byte-for-byte consistent with the standalone `bin/civic_annotate.py` test below (140 lines; BRAF V600E at 132 evidence rows, the other 7 records each at 1 row, same genes/positions). Every real risk this design raised — container tag, `hg38` vs `GRCh38.*` naming, the OOM crash, CIViC's live schema, the CDKN2A isoform-naming question — was checked against a live system before being coded around, not guessed.
 
 ## Why CIViC, not COSMIC's Cancer Gene Census
 
